@@ -45,13 +45,25 @@ skill is self-contained.
 
 | | |
 |---|---|
-| **GitHub CLI** | `gh auth login -s workflow` |
-| **Node.js** | any recent version, for rendering the report PDF |
+| **GitHub CLI** | authenticated, with the `workflow` scope |
+| **Node.js 18+** | builds the enrolment request and renders the report PDF |
 | **A join code** | from whoever runs your dashboard, e.g. `acme-7K2M-9XQ4` |
+
+Nothing else. In particular **`jq` is not required** — it is absent by default
+on Windows and macOS, and setup should not turn into a package-manager errand.
 
 The `workflow` scope is not optional. Setup pushes a workflow file, and GitHub
 rejects that push outright without it — the failure appears at the very last
-step, long after everything looks fine.
+step, long after everything looks fine. Check what you already have with
+`gh auth status`:
+
+```bash
+# already signed in, just missing the scope — keeps your existing login
+gh auth refresh -h github.com -s workflow
+
+# not signed in at all
+gh auth login -s workflow
+```
 
 ---
 
@@ -66,6 +78,9 @@ Restart Claude Code after installing, then inside any repo:
 That enrols the repo, sets its secrets, installs the Action and report tooling,
 and pushes. It is safe to run twice — the credential is rotated rather than
 duplicated.
+
+If you are on a feature branch it will say so and ask before committing, since
+the setup files would otherwise ride into that branch's pull request.
 
 Afterwards, saying "push this" to Claude Code writes a report entry and pushes
 it with your changes. A plain `git push` still registers: the Action sends a

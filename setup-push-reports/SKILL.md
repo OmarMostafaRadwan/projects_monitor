@@ -44,9 +44,27 @@ node --version
 |---|---|
 | Not a git repo | "This isn't a git repository. Run `git init`, add a remote, and try again." |
 | `gh` missing | "The GitHub CLI isn't installed — get it from https://cli.github.com, then re-run this." |
-| `gh` not authenticated | "Run `gh auth login -s workflow` first. The `workflow` scope is required, because setup pushes a workflow file." |
+| `gh` not authenticated | "Run `gh auth login -s workflow` first." |
 | No remote | "This repo has no `origin` remote. Push it to GitHub first." |
-| No node | "Node.js is required to render the report PDF." |
+| No node | "Node.js 18 or newer is required — it builds the enrolment request and renders the report PDF." |
+
+**Check the token's scopes, do not assume.** `gh auth status` prints them.
+Setup pushes a workflow file, which GitHub refuses without `workflow`:
+
+- Scopes already include `workflow` → **say so and move on.** Do not tell the
+  user to re-authenticate; that churns a working keyring entry for nothing.
+- Scopes lack `workflow` → `gh auth refresh -h github.com -s workflow` adds it
+  without discarding the existing login.
+
+**Nothing here needs `jq` or any other tool.** Only `git`, `gh` and `node`,
+which the checks above confirm.
+
+**Note the current branch** — you will need it at step 9:
+
+```bash
+git rev-parse --abbrev-ref HEAD
+git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null || echo "origin/main"
+```
 
 ## Step 2 — Identify the repository
 
@@ -60,16 +78,26 @@ If this fails the repo probably isn't on GitHub yet — say so and stop.
 
 Exchange the join code for a credential scoped to this one repository.
 
+Built and sent with `node`, which the preflight already confirmed. **Do not use
+`jq`** — it is not installed by default on Windows or macOS, and requiring it
+turns a working setup into a package-manager errand.
+
 ```bash
 GH_LOGIN="$(gh api user -q .login)"
 GH_NAME="$(gh api user -q '.name // empty')"
 
-jq -nc --arg code "$JOIN_CODE" --arg repo "$SLUG" \
-       --arg login "$GH_LOGIN" --arg name "$GH_NAME" \
-  '{code: $code, repo: $repo, github_login: $login}
-   + (if $name == "" then {} else {github_name: $name} end)' \
-| curl -s -X POST "$DASHBOARD_URL/api/enroll" \
-    -H "Content-Type: application/json" --data-binary @-
+node -e '
+const [code, repo, login, name, url] = process.argv.slice(1);
+const body = { code, repo, github_login: login };
+if (name) body.github_name = name;
+fetch(url + "/api/enroll", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify(body),
+})
+  .then(async (r) => console.log(JSON.stringify(await r.json())))
+  .catch((e) => { console.error("enrol failed:", e.message); process.exit(1); });
+' "$JOIN_CODE" "$SLUG" "$GH_LOGIN" "$GH_NAME" "$DASHBOARD_URL"
 ```
 
 The response contains `token` and `tenant.name`. Handle failures plainly:
@@ -152,14 +180,28 @@ node .github/add-report-entry.mjs <entry.json>
 
 ## Step 9 — Commit and push
 
+**Check the branch first.** Setup commits `.github/`, `reports/`, `CLAUDE.md`
+and `.gitattributes`. On a feature branch those files ride into whatever pull
+request it becomes, which is rarely what someone wants — and they will not
+notice until review.
+
+If the current branch is not the default one, **stop and ask** before
+committing:
+
+> You're on `fix/some-branch`, not `main`. Setup adds the workflow, report
+> tooling and a `CLAUDE.md` block — committing here means they land in this
+> branch's pull request. Switch to `main` first, or commit here anyway?
+
+Then, on whichever branch they chose:
+
 ```bash
 git add .github reports CLAUDE.md .gitattributes
 git commit -m "chore: set up push reporting"
 git push
 ```
 
-Stay on the current branch. Do not create one, and do not push to a different
-one.
+Do not create a branch, and do not switch branches yourself — that is the
+user's call, and switching could disturb uncommitted work.
 
 ## Step 10 — Report back
 
