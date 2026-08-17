@@ -82,12 +82,18 @@ Built and sent with `node`, which the preflight already confirmed. **Do not use
 `jq`** — it is not installed by default on Windows or macOS, and requiring it
 turns a working setup into a package-manager errand.
 
+**The token must never reach stdout.** Anything printed here lands in the
+conversation transcript, which is exactly where a credential must not be. So
+the token is written to a file and only a safe summary is printed:
+
 ```bash
 GH_LOGIN="$(gh api user -q .login)"
 GH_NAME="$(gh api user -q '.name // empty')"
+TOKEN_FILE="$(node -e 'console.log(require("path").join(require("os").tmpdir(), "prr-" + Date.now() + ".tmp"))')"
 
 node -e '
-const [code, repo, login, name, url] = process.argv.slice(1);
+const fs = require("fs");
+const [code, repo, login, name, url, tokenFile] = process.argv.slice(1);
 const body = { code, repo, github_login: login };
 if (name) body.github_name = name;
 fetch(url + "/api/enroll", {
@@ -95,10 +101,25 @@ fetch(url + "/api/enroll", {
   headers: { "Content-Type": "application/json" },
   body: JSON.stringify(body),
 })
-  .then(async (r) => console.log(JSON.stringify(await r.json())))
+  .then(async (r) => {
+    const j = await r.json();
+    if (!r.ok || !j.ok) {
+      // Errors carry no token, so they are safe to show in full.
+      console.error("enrol failed:", JSON.stringify(j));
+      process.exit(1);
+    }
+    fs.writeFileSync(tokenFile, j.token, { mode: 0o600 });
+    // Everything EXCEPT the token.
+    console.log(JSON.stringify({
+      ok: true, repo: j.repo, rotated: j.rotated, tenant: j.tenant,
+    }));
+  })
   .catch((e) => { console.error("enrol failed:", e.message); process.exit(1); });
-' "$JOIN_CODE" "$SLUG" "$GH_LOGIN" "$GH_NAME" "$DASHBOARD_URL"
+' "$JOIN_CODE" "$SLUG" "$GH_LOGIN" "$GH_NAME" "$DASHBOARD_URL" "$TOKEN_FILE"
 ```
+
+**Never `cat`, echo, or otherwise read `$TOKEN_FILE` into your output.** It is
+consumed by the next step and deleted there.
 
 The response contains `token` and `tenant.name`. Handle failures plainly:
 
@@ -115,12 +136,23 @@ Re-running on an enrolled repo is fine — it rotates the credential and returns
 
 This is what makes setup one command: no GitHub settings UI, no manual entry.
 
+The token goes from file to secret without ever passing through your output.
+`--body-file` means it is never even an argument, which would show in a process
+list:
+
 ```bash
 gh secret set DASHBOARD_URL --body "$DASHBOARD_URL" --repo "$SLUG"
-gh secret set REPORT_TOKEN  --body "$TOKEN"         --repo "$SLUG"
+gh secret set REPORT_TOKEN  --body-file "$TOKEN_FILE" --repo "$SLUG"
+
+# Always, including if the command above failed.
+rm -f "$TOKEN_FILE"
 ```
 
 Secrets overwrite cleanly, so this is safe to repeat.
+
+If `gh secret set` is blocked by a permission prompt, that is reasonable — it
+writes a credential. Ask the user to approve it rather than looking for another
+route, and **do not** print the token so they can set it by hand.
 
 ## Step 5 — Install the files
 
@@ -158,16 +190,26 @@ An existing `reports/` directory is fine — nothing in it is touched. Do **not*
 create `reports/report.json`; the first report entry creates it, and the tool
 refuses to overwrite one belonging to something else.
 
-## Step 6 — Mark PDFs as binary
+## Step 6 — Protect the installed files from line-ending rewrites
 
-Ensure `.gitattributes` contains:
+Ensure `.gitattributes` contains these lines, appending any that are missing
+and creating the file if absent:
 
 ```
 *.pdf binary
+.github/workflows/report.yml text eol=lf
+.github/*.mjs text eol=lf
 ```
 
-Without it, git rewrites line endings in the PDF on Windows checkouts and
-corrupts the file. Create the file if absent; append if the line is missing.
+Both matter, and both fail in ways that do not mention line endings:
+
+- Without `binary`, git rewrites bytes inside the report PDF on Windows
+  checkouts and corrupts it.
+- Without `eol=lf`, a Windows checkout gives the workflow CRLF, and every
+  carriage return inside a `run:` block reaches the Ubuntu runner as
+  `$'\r': command not found`.
+
+Leave the rest of an existing `.gitattributes` alone — only add what is missing.
 
 ## Step 7 — Update CLAUDE.md
 

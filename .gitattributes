@@ -1,0 +1,21 @@
+# Force LF on checkout, on every platform.
+#
+# The installer ships a tarball, which preserves whatever is committed. But
+# anyone who reaches these files by `git clone` on Windows gets core.autocrlf
+# applied, and a carriage return inside report.yml's `run:` block dies on the
+# Ubuntu runner with `$'\r': command not found` — a failure whose message says
+# nothing about line endings.
+#
+# These files are executed, not edited, so there is no reason to want CRLF.
+* text=auto eol=lf
+
+*.mjs   text eol=lf
+*.sh    text eol=lf
+*.yml   text eol=lf
+*.yaml  text eol=lf
+*.json  text eol=lf
+*.md    text eol=lf
+
+# PowerShell is happy with LF, and this keeps the installer byte-identical
+# however it was fetched.
+*.ps1   text eol=lf
