@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pushreports.dev/schema/report-document.schema.json",
+  "title": "Report Document",
+  "description": "reports/report.json — one cumulative file per repo, appended to over time.\n\nOne file rather than a new one per push: the working tree stays clean, and the document doubles as a readable project log. Entries are NEVER edited or removed once written; correcting something means adding an entry that says so.",
+  "type": "object",
+  "required": ["schema_version", "entries"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 2,
+      "description": "2 = cumulative document. Version 1 was a single per-push object."
+    },
+    "repo": {
+      "type": "string",
+      "description": "owner/name, for readers of the file outside its repo. Optional."
+    },
+    "entries": {
+      "type": "array",
+      "description": "Newest first. The Action transmits entries[0]; the PDF renders the most recent few.",
+      "items": { "$ref": "report-entry.schema.json" }
+    }
+  }
+}

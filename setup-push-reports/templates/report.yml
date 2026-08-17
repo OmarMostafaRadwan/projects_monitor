@@ -1,0 +1,231 @@
+name: Push report
+
+# Ships a status report to the dashboard after every push.
+#
+# Two rules govern this file:
+#   1. It must NEVER fail a build. A status tool that blocks deploys gets
+#      deleted within a week, so every step is best-effort and the job is
+#      continue-on-error.
+#   2. A push must NEVER produce silence. If no report exists (a plain `git
+#      push` with no Claude Code involvement), a stub is built from commit
+#      metadata instead — a project that reports nothing is indistinguishable
+#      from a project nobody is working on.
+
+on:
+  push:
+    branches: ["**"]
+
+permissions:
+  contents: read
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    timeout-minutes: 5
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Build payload
+        env:
+          # Git data is UNTRUSTED input. A commit message containing a quote or
+          # `$(...)` would execute as shell if interpolated directly into `run`.
+          # Passing through env and reading with jq --arg keeps it inert.
+          COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+          REPO: ${{ github.repository }}
+          DEVELOPER: ${{ github.actor }}
+          BRANCH: ${{ github.ref_name }}
+          COMMIT: ${{ github.sha }}
+          BEFORE: ${{ github.event.before }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          PUSHED_AT: ${{ github.event.head_commit.timestamp }}
+          # `gh` is preinstalled on GitHub runners but needs a token to call the
+          # API. contents:read is enough for compare and commit lookups.
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -uo pipefail
+
+          pushed_at="${PUSHED_AT:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}"
+          # GitHub sends +00:00 offsets; the dashboard accepts both, but keep it
+          # to one shape so stored timestamps sort predictably.
+          pushed_at="$(date -u -d "$pushed_at" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo "$pushed_at")"
+
+          # reports/report.json is a cumulative document; entries[0] is the
+          # newest and is what this push reports.
+          report_file="reports/report.json"
+          use_fallback=1
+
+          if [ -f "$report_file" ] && jq -e '.entries[0]' "$report_file" >/dev/null 2>&1; then
+            use_fallback=0
+          else
+            echo "::notice::No usable reports/report.json — sending a fallback stub."
+          fi
+
+          # Files changed come from git, not from the report.
+          #
+          # The push event payload already lists them per commit, so this needs
+          # no extra history fetch. Asking a model to recall which files it
+          # touched trades a fact for a recollection — git already knows.
+          #
+          # Caveat: GitHub caps `commits` at 20 per push event. On a larger
+          # push the list is partial, which is why an empty result falls back to
+          # whatever the report claimed rather than overwriting it with nothing.
+          files_json="[]"
+
+          # Source of truth is GitHub's own view of the push. The compare API
+          # covers every commit in the push (the event payload caps its `commits`
+          # list, and in practice has come back empty here), and it needs no git
+          # history — which matters because the checkout is shallow.
+          if [ -n "${BEFORE:-}" ] \
+             && [ "$BEFORE" != "0000000000000000000000000000000000000000" ]; then
+            files_json="$(gh api "repos/${REPO}/compare/${BEFORE}...${COMMIT}" \
+              --jq '[.files[]?.filename] | unique | .[0:200]' 2>/dev/null || echo "[]")"
+            echo "Changed files from compare API: $(jq -r 'length' <<<"$files_json")."
+          fi
+
+          # New branch, or compare unavailable: ask about the head commit alone.
+          if [ "$(jq -r 'length' <<<"$files_json" 2>/dev/null || echo 0)" -eq 0 ]; then
+            files_json="$(gh api "repos/${REPO}/commits/${COMMIT}" \
+              --jq '[.files[]?.filename] | unique | .[0:200]' 2>/dev/null || echo "[]")"
+            echo "Changed files from commit API: $(jq -r 'length' <<<"$files_json")."
+          fi
+
+          # Last resort: the push event payload, which costs no API call.
+          if [ "$(jq -r 'length' <<<"$files_json" 2>/dev/null || echo 0)" -eq 0 ] \
+             && [ -n "${GITHUB_EVENT_PATH:-}" ] && [ -f "$GITHUB_EVENT_PATH" ]; then
+            files_json="$(jq -c '
+              [ (.commits // [])[] | (.added // []), (.modified // []), (.removed // []) ]
+              | flatten | unique | .[0:200]
+            ' "$GITHUB_EVENT_PATH" 2>/dev/null || echo "[]")"
+            echo "Changed files from push event: $(jq -r 'length' <<<"$files_json")."
+          fi
+
+          # Deliberately NOT falling back to `git show --name-only`: against a
+          # shallow clone the head commit has no parent, so git reports the whole
+          # tree as added — turning "5 files changed" into the entire repo. An
+          # empty list leaves whatever the report itself claimed, which is far
+          # better than a confidently wrong one.
+          if [ "$(jq -r 'length' <<<"$files_json" 2>/dev/null || echo 0)" -eq 0 ]; then
+            echo "::notice::Could not determine changed files — leaving the report's own list."
+          fi
+
+          if [ "$use_fallback" -eq 0 ]; then
+            # Flatten the newest entry into the wire shape the dashboard reads.
+            report_json="$(jq -c '.entries[0] | {
+              schema_version: 2,
+              title: .title,
+              summary: .summary,
+              why: (.why // ""),
+              what_changed: (.what_changed // []),
+              decisions: (.decisions // []),
+              verification: (.verification // []),
+              files_changed: (.files_changed // []),
+              blockers: (.blockers // []),
+              next_steps: (.next_steps // []),
+              area: (.area // "other"),
+              type: (.type // "chore"),
+              generated_by: (.generated_by // "claude-code"),
+              generated_at: .timestamp
+            }' "$report_file")"
+
+            # GitHub's file list wins over whatever the entry claimed.
+            if [ "$(jq -r 'length' <<<"$files_json")" -gt 0 ]; then
+              report_json="$(jq -c --argjson files "$files_json" \
+                '.files_changed = $files' <<<"$report_json")"
+            fi
+          else
+            title="$(printf '%s' "$COMMIT_MESSAGE" | head -n1)"
+            report_json="$(jq -nc \
+              --arg title "${title:-Push with no commit message}" \
+              --argjson files "$files_json" \
+              '{
+                schema_version: 2,
+                title: ($title | .[0:120]),
+                summary: "",
+                why: "",
+                what_changed: [],
+                decisions: [],
+                verification: [],
+                files_changed: $files,
+                blockers: [],
+                next_steps: [],
+                area: "other",
+                type: "chore",
+                generated_by: "fallback",
+                generated_at: (now | todate)
+              }')"
+          fi
+
+          jq -nc \
+            --arg repo "$REPO" \
+            --arg developer "$DEVELOPER" \
+            --arg branch "$BRANCH" \
+            --arg commit "$COMMIT" \
+            --arg commit_message "$COMMIT_MESSAGE" \
+            --arg run_url "$RUN_URL" \
+            --arg pushed_at "$pushed_at" \
+            --argjson report "$report_json" \
+            '{
+              repo: $repo,
+              developer: $developer,
+              branch: $branch,
+              commit: $commit,
+              commit_message: ($commit_message | .[0:2000]),
+              run_url: $run_url,
+              pushed_at: $pushed_at,
+              report: $report
+            }' > /tmp/payload.json
+
+          # Attach the PDF as a second pass rather than branching the jq filter
+          # above — one code path builds the payload, one optionally adds to it.
+          if [ -f "reports/report.pdf" ]; then
+            size="$(wc -c < reports/report.pdf)"
+            if [ "$size" -le 2000000 ]; then
+              base64 -w0 reports/report.pdf > /tmp/pdf.b64
+              if jq -c --rawfile pdf /tmp/pdf.b64 \
+                   '. + {pdf_base64: ($pdf | rtrimstr("\n"))}' \
+                   /tmp/payload.json > /tmp/payload.with-pdf.json; then
+                mv /tmp/payload.with-pdf.json /tmp/payload.json
+              else
+                echo "::warning::Could not attach reports/report.pdf — sending the report without it."
+              fi
+            else
+              echo "::warning::reports/report.pdf is ${size} bytes — over the 2 MB limit, skipping attachment."
+            fi
+          fi
+
+          echo "Payload is $(wc -c < /tmp/payload.json) bytes."
+
+      - name: Send to dashboard
+        env:
+          DASHBOARD_URL: ${{ secrets.DASHBOARD_URL }}
+          REPORT_TOKEN: ${{ secrets.REPORT_TOKEN }}
+        run: |
+          set -uo pipefail
+
+          if [ -z "${DASHBOARD_URL:-}" ] || [ -z "${REPORT_TOKEN:-}" ]; then
+            echo "::warning::DASHBOARD_URL or REPORT_TOKEN is not set — skipping. Re-run the setup skill in this repo."
+            exit 0
+          fi
+
+          # -m 15 caps the whole request. Any failure is reported and swallowed:
+          # the build's success does not depend on the dashboard being up.
+          status="$(curl -s -o /tmp/response.txt -w '%{http_code}' \
+            -m 15 --retry 2 --retry-connrefused \
+            -X POST "${DASHBOARD_URL%/}/api/report" \
+            -H "Authorization: Bearer ${REPORT_TOKEN}" \
+            -H "Content-Type: application/json" \
+            --data-binary @/tmp/payload.json)" || status="000"
+
+          case "$status" in
+            2*) echo "Report delivered (HTTP $status)." ;;
+            000) echo "::warning::Dashboard unreachable or timed out. Build unaffected." ;;
+            401|403) echo "::warning::Dashboard rejected the credential (HTTP $status). Re-run the setup skill in this repo." ;;
+            409) echo "::warning::This credential is bound to a different repository (HTTP 409)." ;;
+            *) echo "::warning::Dashboard returned HTTP $status: $(head -c 300 /tmp/response.txt)" ;;
+          esac
+
+          exit 0

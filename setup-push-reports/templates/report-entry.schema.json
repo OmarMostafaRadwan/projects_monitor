@@ -1,0 +1,107 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pushreports.dev/schema/report-entry.schema.json",
+  "title": "Report Entry",
+  "description": "One push's worth of report. Entries accumulate in reports/report.json; the Action transmits the newest one.\n\nThe fields exist to capture what a diff cannot recover: why a change was made, what was decided along the way, and how we know it works. A diff shows what changed and nothing else.",
+  "type": "object",
+  "required": [
+    "timestamp",
+    "title",
+    "summary",
+    "what_changed",
+    "why",
+    "decisions",
+    "verification",
+    "blockers",
+    "next_steps",
+    "files_changed",
+    "area",
+    "type",
+    "generated_by"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "RFC 3339 UTC, e.g. 2026-08-17T14:32:00Z. Entries are ordered newest first."
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 120,
+      "description": "Short headline for the work, in plain language."
+    },
+    "summary": {
+      "type": "string",
+      "maxLength": 2000,
+      "description": "Three to five sentences for a NON-TECHNICAL reader: what capability now exists that didn't before, and what it means for the client or the project. No file names, no function names, no framework names. This is what appears on the CEO's screen."
+    },
+    "what_changed": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1, "maxLength": 400 },
+      "maxItems": 30,
+      "description": "The concrete changes, one capability per entry. Technical detail is fine here — this is the layer below the summary."
+    },
+    "why": {
+      "type": "string",
+      "maxLength": 1500,
+      "description": "The reason this work happened now: the problem observed, the request made, or the bug hit. Intent only exists at the moment of the work — a diff can never recover it."
+    },
+    "decisions": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1, "maxLength": 400 },
+      "maxItems": 20,
+      "description": "Notable choices and the reasoning behind them, including options rejected. Empty array when nothing non-obvious was decided."
+    },
+    "verification": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1, "maxLength": 400 },
+      "maxItems": 20,
+      "description": "How we know it works: tests run, checks performed, things observed. State plainly what was NOT verified — an unverified claim recorded as verified is worse than no report."
+    },
+    "blockers": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1, "maxLength": 400 },
+      "maxItems": 20,
+      "description": "Empty array when nothing is blocked. NEVER omit the key. This field is the main reason the system exists — include who or what is being waited on."
+    },
+    "next_steps": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1, "maxLength": 400 },
+      "maxItems": 20,
+      "description": "What comes next on this project."
+    },
+    "files_changed": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1, "maxLength": 400 },
+      "maxItems": 200,
+      "description": "Repo-relative paths. Leave empty — the Action fills this in from GitHub's own record of the push, which is authoritative."
+    },
+    "area": {
+      "enum": ["auth", "ui", "api", "database", "infra", "docs", "other"]
+    },
+    "type": {
+      "enum": ["feature", "fix", "refactor", "chore"]
+    },
+    "generated_by": {
+      "enum": ["claude-code", "fallback"],
+      "description": "'claude-code' when written during the work; 'fallback' when the Action built a stub because no report existed."
+    }
+  },
+  "allOf": [
+    {
+      "description": "A claude-code entry must actually say something. Fallback entries are allowed empty prose because they are built from commit metadata alone.",
+      "if": {
+        "properties": { "generated_by": { "const": "claude-code" } },
+        "required": ["generated_by"]
+      },
+      "then": {
+        "properties": {
+          "summary": { "minLength": 1 },
+          "why": { "minLength": 1 }
+        }
+      }
+    }
+  ]
+}
