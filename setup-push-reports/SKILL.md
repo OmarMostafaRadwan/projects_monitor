@@ -124,7 +124,21 @@ Secrets overwrite cleanly, so this is safe to repeat.
 
 ## Step 5 — Install the files
 
-Copy from this skill's `templates/` directory, overwriting existing copies:
+**First, check you are not about to destroy someone else's workflow.**
+`report.yml` is a generic name, and an existing project may already have one
+that has nothing to do with this:
+
+```bash
+head -1 .github/workflows/report.yml 2>/dev/null
+```
+
+- File absent, or first line is `name: Push report` → ours, or new. Proceed.
+- Anything else → **stop and ask.** Offer to install as
+  `.github/workflows/push-report.yml` instead, and use that name for the rest
+  of this step. Never overwrite a workflow you did not write.
+
+Then copy from this skill's `templates/` directory, overwriting only our own
+previous copies:
 
 | Template | Destination |
 |---|---|
@@ -140,7 +154,9 @@ Then create the reports directory:
 mkdir -p reports && touch reports/.gitkeep
 ```
 
-Do **not** create `reports/report.json` — the first report entry creates it.
+An existing `reports/` directory is fine — nothing in it is touched. Do **not**
+create `reports/report.json`; the first report entry creates it, and the tool
+refuses to overwrite one belonging to something else.
 
 ## Step 6 — Mark PDFs as binary
 
