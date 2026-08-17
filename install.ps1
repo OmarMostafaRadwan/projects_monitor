@@ -1,13 +1,13 @@
 # Installs the setup-push-reports skill into %USERPROFILE%\.claude\skills.
 #
-#   irm https://raw.githubusercontent.com/OmarMostafaRadwan/push-reports-skill/main/install.ps1 | iex
+#   irm https://raw.githubusercontent.com/OmarMostafaRadwan/projects_monitor/main/install.ps1 | iex
 #
 # Installs to the PERSONAL skills directory rather than a project's, because
 # the whole point is onboarding arbitrary repos.
 
 $ErrorActionPreference = "Stop"
 
-$Repo   = if ($env:PUSH_REPORTS_REPO)   { $env:PUSH_REPORTS_REPO }   else { "OmarMostafaRadwan/push-reports-skill" }
+$Repo   = if ($env:PUSH_REPORTS_REPO)   { $env:PUSH_REPORTS_REPO }   else { "OmarMostafaRadwan/projects_monitor" }
 $Branch = if ($env:PUSH_REPORTS_BRANCH) { $env:PUSH_REPORTS_BRANCH } else { "main" }
 $Skill  = "setup-push-reports"
 $Dest   = Join-Path $env:USERPROFILE ".claude\skills"

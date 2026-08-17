@@ -15,13 +15,13 @@ one.
 **macOS / Linux**
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/OmarMostafaRadwan/push-reports-skill/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/OmarMostafaRadwan/projects_monitor/main/install.sh | bash
 ```
 
 **Windows (PowerShell)**
 
 ```powershell
-irm https://raw.githubusercontent.com/OmarMostafaRadwan/push-reports-skill/main/install.ps1 | iex
+irm https://raw.githubusercontent.com/OmarMostafaRadwan/projects_monitor/main/install.ps1 | iex
 ```
 
 Either installs to your personal skills directory (`~/.claude/skills`), so it is

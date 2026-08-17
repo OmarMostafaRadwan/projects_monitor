@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 # Installs the setup-push-reports skill into ~/.claude/skills.
 #
-#   curl -fsSL https://raw.githubusercontent.com/OmarMostafaRadwan/push-reports-skill/main/install.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/OmarMostafaRadwan/projects_monitor/main/install.sh | bash
 #
 # Installs to the PERSONAL skills directory rather than a project's, because
 # the whole point is onboarding arbitrary repos — a project-scoped copy would
 # only be available in the one repo you happened to install it into.
 set -euo pipefail
 
-REPO="${PUSH_REPORTS_REPO:-OmarMostafaRadwan/push-reports-skill}"
+REPO="${PUSH_REPORTS_REPO:-OmarMostafaRadwan/projects_monitor}"
 BRANCH="${PUSH_REPORTS_BRANCH:-main}"
 SKILL="setup-push-reports"
 DEST="${CLAUDE_SKILLS_DIR:-$HOME/.claude/skills}"
