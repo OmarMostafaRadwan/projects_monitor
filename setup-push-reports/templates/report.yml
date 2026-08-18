@@ -159,6 +159,74 @@ jobs:
               }')"
           fi
 
+          # The repo's README, so the dashboard can show what a project IS and
+          # not only what changed. Taken from the checkout rather than fetched
+          # from the API, which keeps it working for private repos with no
+          # extra token and in step with this exact commit.
+          readme_file=""
+          for candidate in README.md readme.md README.MD Readme.md README.markdown README.txt README; do
+            if [ -f "$candidate" ]; then readme_file="$candidate"; break; fi
+          done
+
+          readme_json='""'
+          if [ -n "$readme_file" ]; then
+            size="$(wc -c < "$readme_file")"
+            if [ "$size" -le 200000 ]; then
+              readme_json="$(jq -Rs . < "$readme_file")"
+              echo "Including $readme_file (${size} bytes)."
+            else
+              echo "::notice::$readme_file is ${size} bytes — too large to send, skipping."
+            fi
+          else
+            echo "::notice::No README found."
+          fi
+
+          # Screenshots from docs/screenshots/. The folder is the source of
+          # truth: whatever is there replaces whatever the dashboard has, so
+          # deleting one from the repo removes it there too.
+          shots_json='[]'
+          shots_dir="docs/screenshots"
+          if [ -d "$shots_dir" ]; then
+            tmp_shots="$(mktemp)"
+            echo '[]' > "$tmp_shots"
+            total=0
+            count=0
+            # Sorted so `01-login.png` reliably precedes `02-overview.png`.
+            while IFS= read -r img; do
+              [ -f "$img" ] || continue
+              if [ "$count" -ge 12 ]; then
+                echo "::notice::More than 12 screenshots — sending the first 12."
+                break
+              fi
+              bytes="$(wc -c < "$img")"
+              if [ "$bytes" -gt 2000000 ]; then
+                echo "::warning::$(basename "$img") is ${bytes} bytes — over 2 MB, skipped."
+                continue
+              fi
+              if [ "$((total + bytes))" -gt 10000000 ]; then
+                echo "::notice::Screenshot payload would exceed 10 MB — stopping here."
+                break
+              fi
+              case "${img##*.}" in
+                png|PNG) ctype="image/png" ;;
+                jpg|jpeg|JPG|JPEG) ctype="image/jpeg" ;;
+                webp|WEBP) ctype="image/webp" ;;
+                gif|GIF) ctype="image/gif" ;;
+                *) continue ;;
+              esac
+              base64 -w0 "$img" > /tmp/shot.b64
+              jq -c --arg name "$(basename "$img")" --arg ct "$ctype" \
+                    --rawfile data /tmp/shot.b64 \
+                    '. + [{filename: $name, content_type: $ct, data: ($data | rtrimstr("\n"))}]' \
+                    "$tmp_shots" > "$tmp_shots.new" && mv "$tmp_shots.new" "$tmp_shots"
+              total=$((total + bytes))
+              count=$((count + 1))
+            done <<< "$(find "$shots_dir" -maxdepth 1 -type f | sort)"
+            shots_json="$(cat "$tmp_shots")"
+            rm -f "$tmp_shots" /tmp/shot.b64
+            echo "Including ${count} screenshot(s), ${total} bytes."
+          fi
+
           jq -nc \
             --arg repo "$REPO" \
             --arg developer "$DEVELOPER" \
@@ -168,6 +236,8 @@ jobs:
             --arg run_url "$RUN_URL" \
             --arg pushed_at "$pushed_at" \
             --argjson report "$report_json" \
+            --argjson readme "$readme_json" \
+            --argjson screenshots "$shots_json" \
             '{
               repo: $repo,
               developer: $developer,
@@ -176,7 +246,9 @@ jobs:
               commit_message: ($commit_message | .[0:2000]),
               run_url: $run_url,
               pushed_at: $pushed_at,
-              report: $report
+              report: $report,
+              readme: $readme,
+              screenshots: $screenshots
             }' > /tmp/payload.json
 
           # Attach the PDF as a second pass rather than branching the jq filter
