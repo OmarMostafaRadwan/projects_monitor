@@ -43,18 +43,33 @@ node --version
 | Failure | What to tell the user |
 |---|---|
 | Not a git repo | "This isn't a git repository. Run `git init`, add a remote, and try again." |
-| `gh` missing | "The GitHub CLI isn't installed — get it from https://cli.github.com, then re-run this." |
-| `gh` not authenticated | "Run `gh auth login -s workflow` first." |
+| `gh` missing | "The GitHub CLI isn't installed — get it from https://cli.github.com, then restart me and re-run this." |
+| `gh` not authenticated | "Run `gh auth login -s workflow` in your own terminal, then re-run this." |
 | No remote | "This repo has no `origin` remote. Push it to GitHub first." |
 | No node | "Node.js 18 or newer is required — it builds the enrolment request and renders the report PDF." |
+
+### Installing or authenticating `gh` is the user's job, not yours
+
+**Never run `gh auth login` or `gh auth refresh` yourself, and never try to
+install `gh`.** Both auth commands open a browser and wait for a one-time code
+typed into it. Your shell has no interactive input, so the command does not
+prompt you — it hangs until it is killed, or fails with a message about the
+terminal rather than about authentication. Retrying, or piping input at it,
+wastes the user's time and can leave a half-written credential in their keyring.
+
+When `gh` is missing or unauthenticated: **stop.** Do not continue to Step 2, do
+not enrol, do not write any files. Tell the user the exact command to run in
+their own terminal, and that you will pick it up once they have. A repo that is
+half set up is worse than one that is untouched, because they believe it works.
 
 **Check the token's scopes, do not assume.** `gh auth status` prints them.
 Setup pushes a workflow file, which GitHub refuses without `workflow`:
 
 - Scopes already include `workflow` → **say so and move on.** Do not tell the
   user to re-authenticate; that churns a working keyring entry for nothing.
-- Scopes lack `workflow` → `gh auth refresh -h github.com -s workflow` adds it
-  without discarding the existing login.
+- Scopes lack `workflow` → stop and ask them to run
+  `gh auth refresh -h github.com -s workflow`, which adds the scope without
+  discarding the existing login. Same rule as above: they run it, not you.
 
 **Nothing here needs `jq` or any other tool.** Only `git`, `gh` and `node`,
 which the checks above confirm.

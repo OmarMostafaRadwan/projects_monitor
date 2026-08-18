@@ -65,6 +65,11 @@ gh auth refresh -h github.com -s workflow
 gh auth login -s workflow
 ```
 
+**Run these yourself.** Both open a browser and wait for a one-time code, so a
+coding assistant cannot complete them — its shell has nothing to type into, and
+it will appear to hang. If `gh` is missing or signed out, the skill stops and
+asks you rather than setting the repo up halfway.
+
 ---
 
 ## Use
