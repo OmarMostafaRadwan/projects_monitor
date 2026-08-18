@@ -128,6 +128,8 @@ if (auth.cookie?.name && auth.cookie?.valueEnv) {
 
 const shots = [];
 let total = 0;
+let loginRequired = false;
+let loginSucceeded = false;
 
 // A page marked `"signedOut": true` is captured in a second, never-authenticated
 // context. Without this a sign-in screen is impossible to photograph: once the
@@ -140,6 +142,7 @@ try {
   const anonPage = await anonContext.newPage();
 
   if (auth.login?.path && auth.login?.fields) {
+    loginRequired = true;
     try {
       await page.goto(`${baseUrl}${auth.login.path}`, { waitUntil: "domcontentloaded" });
       for (const [selector, envName] of Object.entries(auth.login.fields)) {
@@ -148,10 +151,10 @@ try {
       }
       await page.click(auth.login.submit || 'button[type="submit"]');
       await page.waitForLoadState("networkidle", { timeout: 15_000 });
+      loginSucceeded = true;
       console.log(`Signed in via ${auth.login.path}.`);
     } catch (error) {
-      // A failed login still leaves the public pages worth capturing.
-      console.log(`::warning::Login failed (${error.message}) — capturing as a signed-out visitor.`);
+      console.log(`::warning::Login failed (${error.message}).`);
     }
   }
 
@@ -166,10 +169,20 @@ try {
     const target = entry.signedOut ? anonPage : page;
 
     try {
-      await target.goto(`${baseUrl}${entry.path}`, {
+      const response = await target.goto(`${baseUrl}${entry.path}`, {
         waitUntil: entry.waitUntil || "networkidle",
         timeout: 30_000,
       });
+
+      // An error page photographs perfectly well. Without this check a run
+      // against an app that started but cannot serve anything uploads a set of
+      // identical error screens over a good set, and nothing looks wrong until
+      // someone opens the dashboard.
+      const status = response?.status();
+      if (status && status >= 400) {
+        console.log(`::warning::${entry.path} returned HTTP ${status} — not a page worth showing, skipped.`);
+        continue;
+      }
       if (entry.waitFor) await target.waitForSelector(entry.waitFor, { timeout: 15_000 });
       await target.waitForTimeout(entry.waitMs ?? settleMs);
 
@@ -201,6 +214,16 @@ try {
   }
 } finally {
   await browser.close();
+}
+
+if (loginRequired && !loginSucceeded) {
+  // Every page that needed a session shows a sign-in screen or an error, so the
+  // set is wrong as a whole. Uploading it would replace correct screenshots with
+  // convincing rubbish — worse than uploading nothing at all.
+  bail(
+    "::warning::A login is configured but did not succeed, so the captures do not " +
+      "show the signed-in app. Uploading nothing and leaving the existing screenshots alone.",
+  );
 }
 
 if (shots.length === 0) {

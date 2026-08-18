@@ -405,13 +405,18 @@ jobs:
           port="$(read_cfg port 3000)"
           ready_path="$(read_cfg readyPath /)"
 
+          # Each command runs in a SUBSHELL so it starts from the repository
+          # root. Without this a `cd` in the install command leaks into the
+          # build command, and a config that says `cd app && ...` in both --
+          # the obvious thing to write -- fails on the second one with
+          # "No such file or directory", naming a directory that plainly exists.
           echo "::group::Install"
-          eval "$install_cmd" || { echo "::warning::Install failed — cannot capture."; exit 0; }
+          ( eval "$install_cmd" ) || { echo "::warning::Install failed — cannot capture."; exit 0; }
           echo "::endgroup::"
 
           if [ -n "$build_cmd" ]; then
             echo "::group::Build"
-            eval "$build_cmd" || { echo "::warning::Build failed — cannot capture."; exit 0; }
+            ( eval "$build_cmd" ) || { echo "::warning::Build failed — cannot capture."; exit 0; }
             echo "::endgroup::"
           fi
 
@@ -429,7 +434,10 @@ jobs:
           "$PLAYWRIGHT_DIR/node_modules/.bin/playwright" install chromium             || { echo "::warning::Could not install a browser."; exit 0; }
 
           echo "Starting: $start_cmd"
-          eval "$start_cmd" > /tmp/app.log 2>&1 &
+          # setsid puts the app in its own process group, so the whole tree can
+          # be stopped afterwards. A dev server usually spawns children, and
+          # killing only the shell leaves them holding the port.
+          setsid bash -c "$start_cmd" > /tmp/app.log 2>&1 &
           app_pid=$!
 
           # Wait for the app rather than sleeping a guessed amount. An app that
@@ -444,10 +452,10 @@ jobs:
           if [ "$up" -ne 1 ]; then
             echo "::warning::App did not respond on port ${port} within 120s. Last 40 lines:"
             tail -40 /tmp/app.log || true
-            kill "$app_pid" 2>/dev/null || true
+            kill -TERM -"$app_pid" 2>/dev/null || kill "$app_pid" 2>/dev/null || true
             exit 0
           fi
 
           node .github/capture-screenshots.mjs || echo "::warning::Capture step reported a problem."
-          kill "$app_pid" 2>/dev/null || true
+          kill -TERM -"$app_pid" 2>/dev/null || kill "$app_pid" 2>/dev/null || true
           exit 0

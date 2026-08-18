@@ -1,4 +1,6 @@
 {
+  "$comment_commands": "install, build and start each run from the repository root, independently. If the app is in a subdirectory, cd into it in all three.",
+
   "$comment": "Pages the dashboard shows for this project. CI starts the app on every push to the default branch, captures these, and uploads them. Images are never committed — only this file is. Delete this file to turn screenshots off. See docs/screenshots/README.md.",
 
   "install": "npm ci",

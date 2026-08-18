@@ -225,6 +225,13 @@ project's real values** rather than copied verbatim:
 
 - `install`, `build`, `start` — the project's actual commands. Read them from
   `package.json`; a build that is not needed should be `""`, not invented.
+  **Pick the package manager from the lockfile, not from habit.** `npm ci`
+  against a `pnpm-lock.yaml` fails immediately and takes the whole capture with
+  it. `pnpm-lock.yaml` → `corepack enable && pnpm install --frozen-lockfile`,
+  `yarn.lock` → `corepack enable && yarn install --immutable`, `bun.lockb` →
+  `bun install --frozen-lockfile`, `package-lock.json` → `npm ci`. If the app
+  lives in a subdirectory, `cd` into it **in every one of the three commands** —
+  each runs from the repository root, independently of the others.
 - `port` and `readyPath` — where the started app answers.
 - `pages` — the routes worth showing, numbered in the order a person meets
   them. Read them from the router rather than guessing. Two or three good ones
