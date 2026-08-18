@@ -104,7 +104,8 @@ indistinguishable from a project nobody is working on.
 .github/report-document.schema.json the document contract
 reports/report.json                 cumulative log, newest entry first
 reports/report.pdf                  readable version, most recent entries
-docs/screenshots/README.md          the naming convention for page screenshots
+docs/screenshots.config.json        the pages CI photographs, if this app has any
+.github/capture-screenshots.mjs     captures those pages and uploads them
 CLAUDE.md                           the block that makes reporting automatic
 .gitattributes                      marks PDFs binary so git cannot corrupt them
 ```
@@ -128,12 +129,16 @@ and file names — never source code — but if you work under a contract that
 restricts even that, check before onboarding a client repo.
 
 **Your README and screenshots are sent too.** On every push the Action uploads
-`README.md` and any images in `docs/screenshots/`, so the dashboard can show
-what a project is rather than only what changed. That is a larger disclosure
-than the reports themselves — a screenshot can contain customer names, real
-data, or anything else that was on screen when it was taken. Nothing is sent
-from `docs/screenshots/` until you put something there, so if that is not
-appropriate for a repo, leave the folder empty and the feature stays off.
+`README.md`, so the dashboard can show what a project is rather than only what
+changed. If `docs/screenshots.config.json` exists, a second job also starts your
+app on pushes to the default branch, photographs the pages it lists, and uploads
+those. That is a larger disclosure than the reports themselves — a screenshot can
+contain customer names, real data, or anything else on screen when it was taken.
+Delete that file and no screenshot is ever taken.
+
+**Screenshots are never committed.** Only the page list is. Git keeps every
+version of a binary forever and images do not compress between versions, so
+committing them would grow your repository on every push, permanently.
 
 **Activity is a liveness signal, not a productivity measure.** There are no
 leaderboards and no push counts, deliberately.

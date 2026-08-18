@@ -67,18 +67,25 @@ of the work, not a separate chore.
 
 - **`README.md`** — update it when what the project does changes. It is read by
   people who will never open the code.
-- **`docs/screenshots/`** — one image per page or main view, named so they sort
-  into the order a person meets them: `01-sign-in.png`, `02-overview.png`,
-  `03-project-detail.png`. Add one when you add a page, replace the ones whose
-  screen you changed, and delete the file when the page goes away. The folder is
-  the source of truth: the dashboard mirrors it exactly, so a deleted file
-  disappears there too.
+- **`docs/screenshots.config.json`** — the list of pages the dashboard shows.
+  **This is your job, and it is the only screenshot work you do.** Add an entry
+  when you add a page, remove one when a page goes away, and fix a path when a
+  route changes. Keep the `NN-` prefixes so they sort into the order a person
+  meets them.
 
-PNG, JPEG, WebP or GIF; up to 2 MB each, 12 images, 10 MB total. Anything over a
-limit is skipped with a warning in the Action log rather than failing the push.
+CI takes the pictures, not you. On every push to the default branch it starts
+the app, captures exactly the pages this file lists, and uploads them — so what
+the dashboard shows is what the code currently renders. You have no browser, and
+guessing at a screenshot is worse than having none.
 
-If you changed the interface and cannot capture a screenshot yourself, say so in
-`next_steps` rather than leaving a stale image in place.
+**Never commit image files for this.** Only the config is committed. Git keeps
+every version of a binary forever and images do not compress between versions,
+so committing a megabyte per push grows the repository permanently. If you find
+images in `docs/screenshots/`, they are from the older arrangement and the
+config supersedes them.
+
+If a page needs a login, the config names the *environment variables* holding
+the credentials — never the credentials themselves. This file is committed.
 
 ### Rules
 

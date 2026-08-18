@@ -194,10 +194,14 @@ jobs:
           # Screenshots from docs/screenshots/. The folder is the source of
           # truth: whatever is there replaces whatever the dashboard has, so
           # deleting one from the repo removes it there too.
+          # Two writers must never share this field. When the project captures
+          # in CI the screenshots job owns it, so the folder is not read and the
+          # key is dropped from the payload below — otherwise this job would
+          # send [] and wipe what the capture job just uploaded.
           shots_dir="docs/screenshots"
           tmp_shots=/tmp/shots.json
           echo '[]' > "$tmp_shots"
-          if [ -d "$shots_dir" ]; then
+          if [ -d "$shots_dir" ] && [ ! -f docs/screenshots.config.json ]; then
             total=0
             count=0
             # Sorted so `01-login.png` reliably precedes `02-overview.png`.
@@ -277,6 +281,14 @@ jobs:
             fi
           fi
 
+          # Absent means "leave them alone"; [] means "this project has none".
+          if [ -f docs/screenshots.config.json ]; then
+            if jq -c 'del(.screenshots)' /tmp/payload.json > /tmp/payload.noshots.json; then
+              mv /tmp/payload.noshots.json /tmp/payload.json
+              echo "Screenshots are captured by the screenshots job — not sent from here."
+            fi
+          fi
+
           echo "Payload is $(wc -c < /tmp/payload.json) bytes."
 
       - name: Send to dashboard
@@ -308,4 +320,134 @@ jobs:
             *) echo "::warning::Dashboard returned HTTP $status: $(head -c 300 /tmp/response.txt)" ;;
           esac
 
+          exit 0
+
+  # Screenshots are a SEPARATE job on purpose. Capturing means installing,
+  # building and starting the whole project, which takes minutes and fails for
+  # reasons that have nothing to do with reporting. Sharing a job would put all
+  # of that between a push and its report.
+  #
+  # Default branch only: rebuilding an app on every feature-branch push, to
+  # photograph screens nobody is reviewing yet, costs real money.
+  screenshots:
+    runs-on: ubuntu-latest
+    if: github.ref_name == github.event.repository.default_branch
+    continue-on-error: true
+    timeout-minutes: 20
+
+    # A newer push makes an in-flight capture pointless — it would upload the
+    # previous commit's screens over the current ones.
+    concurrency:
+      group: screenshots-${{ github.repository }}
+      cancel-in-progress: true
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Is this project configured for screenshots?
+        id: check
+        run: |
+          if [ -f docs/screenshots.config.json ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "No docs/screenshots.config.json — this project does not publish screenshots."
+          fi
+
+      - uses: actions/setup-node@v4
+        if: steps.check.outputs.run == 'true'
+        with:
+          node-version: 20
+
+      - name: Start the app and capture
+        if: steps.check.outputs.run == 'true'
+        env:
+          DASHBOARD_URL: ${{ secrets.DASHBOARD_URL }}
+          REPORT_TOKEN: ${{ secrets.REPORT_TOKEN }}
+          # Named by docs/screenshots.config.json when the pages need a login.
+          # Absent on a public site, and absent secrets are simply skipped.
+          SCREENSHOT_EMAIL: ${{ secrets.SCREENSHOT_EMAIL }}
+          SCREENSHOT_PASSWORD: ${{ secrets.SCREENSHOT_PASSWORD }}
+          SCREENSHOT_COOKIE: ${{ secrets.SCREENSHOT_COOKIE }}
+          # Most real apps need environment to boot at all — a database URL, an
+          # API key. Any repo secret named SCREENSHOT_ENV_FOO is handed to the
+          # app as FOO. The prefix is what keeps this explicit: only secrets
+          # deliberately marked for this reach the process.
+          ALL_SECRETS: ${{ toJSON(secrets) }}
+        run: |
+          set -uo pipefail
+
+          # Written to a file and sourced rather than eval'd, so a value
+          # containing quotes or $( ) is data and never shell.
+          node -e '
+            const all = JSON.parse(process.env.ALL_SECRETS || "{}");
+            const out = [];
+            for (const [k, v] of Object.entries(all)) {
+              if (!k.startsWith("SCREENSHOT_ENV_")) continue;
+              out.push(k.slice("SCREENSHOT_ENV_".length) + "=" + JSON.stringify(String(v)));
+            }
+            const nl = String.fromCharCode(10);
+            require("fs").writeFileSync("/tmp/app.env", out.join(nl) + nl);
+            console.log("Passing " + out.length + " SCREENSHOT_ENV_* secret(s) to the app.");
+          '
+          set -a
+          # shellcheck disable=SC1091
+          . /tmp/app.env
+          set +a
+          unset ALL_SECRETS
+
+          cfg=docs/screenshots.config.json
+          read_cfg() { node -e "process.stdout.write(String((JSON.parse(require('fs').readFileSync('$cfg','utf8'))['$1'] ?? '$2')))"; }
+
+          install_cmd="$(read_cfg install 'npm ci')"
+          build_cmd="$(read_cfg build '')"
+          start_cmd="$(read_cfg start 'npm start')"
+          port="$(read_cfg port 3000)"
+          ready_path="$(read_cfg readyPath /)"
+
+          echo "::group::Install"
+          eval "$install_cmd" || { echo "::warning::Install failed — cannot capture."; exit 0; }
+          echo "::endgroup::"
+
+          if [ -n "$build_cmd" ]; then
+            echo "::group::Build"
+            eval "$build_cmd" || { echo "::warning::Build failed — cannot capture."; exit 0; }
+            echo "::endgroup::"
+          fi
+
+          # Installed into its own directory, never into the project. Adding a
+          # dependency to someone's package.json to take a screenshot is rude,
+          # can conflict with what they already pin, and dirties the tree. A
+          # global install would not work either: `import("playwright")` from a
+          # script in the repo does not resolve global packages.
+          export PLAYWRIGHT_DIR=/tmp/pw
+          mkdir -p "$PLAYWRIGHT_DIR"
+          npm i --prefix "$PLAYWRIGHT_DIR" --no-save --silent playwright@1             || { echo "::warning::Could not install Playwright."; exit 0; }
+          # Chromium only, and not --with-deps: the runner already carries the
+          # shared libraries it needs, and installing them again is a minute of
+          # apt for nothing.
+          "$PLAYWRIGHT_DIR/node_modules/.bin/playwright" install chromium             || { echo "::warning::Could not install a browser."; exit 0; }
+
+          echo "Starting: $start_cmd"
+          eval "$start_cmd" > /tmp/app.log 2>&1 &
+          app_pid=$!
+
+          # Wait for the app rather than sleeping a guessed amount. An app that
+          # never comes up is a warning, not a failed build.
+          up=0
+          for _ in $(seq 1 60); do
+            if curl -sf -o /dev/null "http://127.0.0.1:${port}${ready_path}"; then up=1; break; fi
+            if ! kill -0 "$app_pid" 2>/dev/null; then break; fi
+            sleep 2
+          done
+
+          if [ "$up" -ne 1 ]; then
+            echo "::warning::App did not respond on port ${port} within 120s. Last 40 lines:"
+            tail -40 /tmp/app.log || true
+            kill "$app_pid" 2>/dev/null || true
+            exit 0
+          fi
+
+          node .github/capture-screenshots.mjs || echo "::warning::Capture step reported a problem."
+          kill "$app_pid" 2>/dev/null || true
           exit 0

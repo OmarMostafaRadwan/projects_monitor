@@ -1,0 +1,30 @@
+{
+  "$comment": "Pages the dashboard shows for this project. CI starts the app on every push to the default branch, captures these, and uploads them. Images are never committed — only this file is. Delete this file to turn screenshots off. See docs/screenshots/README.md.",
+
+  "install": "npm ci",
+  "build": "npm run build",
+  "start": "npm start",
+  "port": 3000,
+  "readyPath": "/",
+
+  "viewport": { "width": 1440, "height": 900 },
+  "waitMs": 400,
+
+  "$comment_auth": "Optional. Only needed when the interesting pages are behind a login. Values are the NAMES of repo secrets, never the secrets themselves — this file is committed. Delete the whole auth block for a public site.",
+  "auth": {
+    "login": {
+      "path": "/login",
+      "fields": {
+        "input[name=email]": "SCREENSHOT_EMAIL",
+        "input[name=password]": "SCREENSHOT_PASSWORD"
+      },
+      "submit": "button[type=submit]"
+    }
+  },
+
+  "$comment_pages": "Numbered so they sort into the order a person meets them. Up to 12. Optional per page: fullPage, waitFor (a selector), waitMs.",
+  "pages": [
+    { "name": "01-sign-in", "path": "/login", "signedOut": true },
+    { "name": "02-overview", "path": "/" }
+  ]
+}

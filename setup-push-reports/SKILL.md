@@ -195,6 +195,7 @@ previous copies:
 | `render-report-pdf.mjs` | `.github/render-report-pdf.mjs` |
 | `report-entry.schema.json` | `.github/report-entry.schema.json` |
 | `report-document.schema.json` | `.github/report-document.schema.json` |
+| `capture-screenshots.mjs` | `.github/capture-screenshots.mjs` |
 
 Then create the reports directory:
 
@@ -206,20 +207,39 @@ An existing `reports/` directory is fine — nothing in it is touched. Do **not*
 create `reports/report.json`; the first report entry creates it, and the tool
 refuses to overwrite one belonging to something else.
 
-Then create the screenshots directory, so the convention is visible in the repo
-rather than something a future session has to guess at:
+### Screenshots, if this project has pages
 
-```bash
-mkdir -p docs/screenshots
-```
+The dashboard shows screenshots of a project's pages. They are captured by CI on
+every push to the default branch, never committed, and never taken by you — you
+have no browser, and a repository that commits an image per push grows forever.
 
-If `docs/screenshots/README.md` does not exist, copy
-`templates/screenshots-readme.md` to it. If the directory already has images in
-it, leave them alone.
+**Decide whether this project has pages at all.** Look at `package.json` for a
+start script, and at the project layout. A web application qualifies; a library,
+a CLI, or a service with no interface does not. If it does not, skip this
+section entirely and say so at Step 10 — a config file that cannot be satisfied
+produces a failing job on every push.
 
-Do not invent screenshots during setup. Capturing them needs a running app and a
-human's judgement about which views matter; the folder and its README are enough
-to make the next session do it.
+If it does, create `docs/screenshots.config.json` using
+`templates/screenshots.config.json` as the shape, **filled in with this
+project's real values** rather than copied verbatim:
+
+- `install`, `build`, `start` — the project's actual commands. Read them from
+  `package.json`; a build that is not needed should be `""`, not invented.
+- `port` and `readyPath` — where the started app answers.
+- `pages` — the routes worth showing, numbered in the order a person meets
+  them. Read them from the router rather than guessing. Two or three good ones
+  beat twelve speculative ones.
+- `auth` — only if the interesting pages are behind a login. It names the
+  environment variables holding the credentials; it never contains them. Delete
+  the block for a public site, and tell the user at Step 10 which repo secrets
+  to add if you kept it.
+
+Leave an existing `docs/screenshots.config.json` alone — it is the project's
+own, and it may have been tuned.
+
+Images already committed under `docs/screenshots/` keep working, because the
+report job still sends them when no config exists. Once a config is present, CI
+owns the screenshots and the folder is ignored.
 
 ## Step 6 — Protect the installed files from line-ending rewrites
 
@@ -285,6 +305,7 @@ Then, on whichever branch they chose:
 
 ```bash
 git add .github reports CLAUDE.md .gitattributes
+git add docs/screenshots.config.json 2>/dev/null || true
 git commit -m "chore: set up push reporting"
 git push
 ```
