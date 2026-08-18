@@ -99,6 +99,7 @@ indistinguishable from a project nobody is working on.
 .github/report-document.schema.json the document contract
 reports/report.json                 cumulative log, newest entry first
 reports/report.pdf                  readable version, most recent entries
+docs/screenshots/README.md          the naming convention for page screenshots
 CLAUDE.md                           the block that makes reporting automatic
 .gitattributes                      marks PDFs binary so git cannot corrupt them
 ```
@@ -120,6 +121,14 @@ token is scoped to that single repository, so revoking it affects nothing else.
 **Reports describe your work, and leave your machine.** They contain summaries
 and file names — never source code — but if you work under a contract that
 restricts even that, check before onboarding a client repo.
+
+**Your README and screenshots are sent too.** On every push the Action uploads
+`README.md` and any images in `docs/screenshots/`, so the dashboard can show
+what a project is rather than only what changed. That is a larger disclosure
+than the reports themselves — a screenshot can contain customer names, real
+data, or anything else that was on screen when it was taken. Nothing is sent
+from `docs/screenshots/` until you put something there, so if that is not
+appropriate for a repo, leave the folder empty and the feature stays off.
 
 **Activity is a liveness signal, not a productivity measure.** There are no
 leaderboards and no push counts, deliberately.

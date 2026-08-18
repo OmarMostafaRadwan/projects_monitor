@@ -20,8 +20,8 @@ echo; the credential is not.
 
 - **Join code** — from the argument the user passed, or ask for it if absent.
   Codes look like `<slug>-XXXX-XXXX`. Accept any casing.
-- **Dashboard URL** — defaults to `https://project-dashboard-monitoring.vercel.app`.
-  Override only if the user names a different one.
+- **Dashboard URL** — defaults to `https://portal.craft-crew.org`. Override only
+  if the user names a different one.
 
 Set both as shell variables (`JOIN_CODE`, `DASHBOARD_URL`) before starting.
 
@@ -136,13 +136,14 @@ Re-running on an enrolled repo is fine — it rotates the credential and returns
 
 This is what makes setup one command: no GitHub settings UI, no manual entry.
 
-The token goes from file to secret without ever passing through your output.
-`--body-file` means it is never even an argument, which would show in a process
-list:
+The token goes from file to secret without passing through your output. `gh
+secret set` reads stdin when `--body` is omitted, so redirecting the file keeps
+the token out of the argument list too — arguments are visible in a process
+listing:
 
 ```bash
 gh secret set DASHBOARD_URL --body "$DASHBOARD_URL" --repo "$SLUG"
-gh secret set REPORT_TOKEN  --body-file "$TOKEN_FILE" --repo "$SLUG"
+gh secret set REPORT_TOKEN --repo "$SLUG" < "$TOKEN_FILE"
 
 # Always, including if the command above failed.
 rm -f "$TOKEN_FILE"
@@ -189,6 +190,21 @@ mkdir -p reports && touch reports/.gitkeep
 An existing `reports/` directory is fine — nothing in it is touched. Do **not**
 create `reports/report.json`; the first report entry creates it, and the tool
 refuses to overwrite one belonging to something else.
+
+Then create the screenshots directory, so the convention is visible in the repo
+rather than something a future session has to guess at:
+
+```bash
+mkdir -p docs/screenshots
+```
+
+If `docs/screenshots/README.md` does not exist, copy
+`templates/screenshots-readme.md` to it. If the directory already has images in
+it, leave them alone.
+
+Do not invent screenshots during setup. Capturing them needs a running app and a
+human's judgement about which views matter; the folder and its README are enough
+to make the next session do it.
 
 ## Step 6 — Protect the installed files from line-ending rewrites
 

@@ -58,6 +58,28 @@ leave a real blocker out to make a report look tidy.
 **`files_changed`** — omit it. The Action fills it in from GitHub's own record
 of the push, which is authoritative.
 
+### Keep the project's own documentation current
+
+The dashboard shows each project's README and screenshots next to its push
+history, so someone can see what the project *is* — not only what changed last
+week. Both are read from this repo on every push, so keeping them true is part
+of the work, not a separate chore.
+
+- **`README.md`** — update it when what the project does changes. It is read by
+  people who will never open the code.
+- **`docs/screenshots/`** — one image per page or main view, named so they sort
+  into the order a person meets them: `01-sign-in.png`, `02-overview.png`,
+  `03-project-detail.png`. Add one when you add a page, replace the ones whose
+  screen you changed, and delete the file when the page goes away. The folder is
+  the source of truth: the dashboard mirrors it exactly, so a deleted file
+  disappears there too.
+
+PNG, JPEG, WebP or GIF; up to 2 MB each, 12 images, 10 MB total. Anything over a
+limit is skipped with a warning in the Action log rather than failing the push.
+
+If you changed the interface and cannot capture a screenshot yourself, say so in
+`next_steps` rather than leaving a stale image in place.
+
 ### Rules
 
 - Entries are **append-only**. Never edit or delete a past entry; if something

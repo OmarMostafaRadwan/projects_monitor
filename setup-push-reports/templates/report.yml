@@ -48,6 +48,11 @@ jobs:
         run: |
           set -uo pipefail
 
+          # This job is continue-on-error, so a failure here paints the job
+          # green and the send step is simply skipped — a report vanishes with
+          # nothing in the UI to say so. The trap makes that case loud.
+          trap 'code=$?; if [ "$code" -ne 0 ]; then echo "::error::Build payload failed (exit $code) — no report was sent for this push."; fi' EXIT
+
           pushed_at="${PUSHED_AT:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}"
           # GitHub sends +00:00 offsets; the dashboard accepts both, but keep it
           # to one shape so stored timestamps sort predictably.
@@ -168,11 +173,16 @@ jobs:
             if [ -f "$candidate" ]; then readme_file="$candidate"; break; fi
           done
 
-          readme_json='""'
+          # Read through FILES, never through command-line arguments. A big
+          # README or a megabyte of base64 screenshots passed via --argjson
+          # exceeds the argument size limit and kills this step silently — the
+          # job still reports success because it is continue-on-error, and the
+          # send step never runs.
+          : > /tmp/readme.txt
           if [ -n "$readme_file" ]; then
             size="$(wc -c < "$readme_file")"
             if [ "$size" -le 200000 ]; then
-              readme_json="$(jq -Rs . < "$readme_file")"
+              cp "$readme_file" /tmp/readme.txt
               echo "Including $readme_file (${size} bytes)."
             else
               echo "::notice::$readme_file is ${size} bytes — too large to send, skipping."
@@ -184,11 +194,10 @@ jobs:
           # Screenshots from docs/screenshots/. The folder is the source of
           # truth: whatever is there replaces whatever the dashboard has, so
           # deleting one from the repo removes it there too.
-          shots_json='[]'
           shots_dir="docs/screenshots"
+          tmp_shots=/tmp/shots.json
+          echo '[]' > "$tmp_shots"
           if [ -d "$shots_dir" ]; then
-            tmp_shots="$(mktemp)"
-            echo '[]' > "$tmp_shots"
             total=0
             count=0
             # Sorted so `01-login.png` reliably precedes `02-overview.png`.
@@ -222,8 +231,7 @@ jobs:
               total=$((total + bytes))
               count=$((count + 1))
             done <<< "$(find "$shots_dir" -maxdepth 1 -type f | sort)"
-            shots_json="$(cat "$tmp_shots")"
-            rm -f "$tmp_shots" /tmp/shot.b64
+            rm -f /tmp/shot.b64
             echo "Including ${count} screenshot(s), ${total} bytes."
           fi
 
@@ -236,8 +244,8 @@ jobs:
             --arg run_url "$RUN_URL" \
             --arg pushed_at "$pushed_at" \
             --argjson report "$report_json" \
-            --argjson readme "$readme_json" \
-            --argjson screenshots "$shots_json" \
+            --rawfile readme /tmp/readme.txt \
+            --slurpfile screenshots /tmp/shots.json \
             '{
               repo: $repo,
               developer: $developer,
@@ -248,7 +256,7 @@ jobs:
               pushed_at: $pushed_at,
               report: $report,
               readme: $readme,
-              screenshots: $screenshots
+              screenshots: $screenshots[0]
             }' > /tmp/payload.json
 
           # Attach the PDF as a second pass rather than branching the jq filter
