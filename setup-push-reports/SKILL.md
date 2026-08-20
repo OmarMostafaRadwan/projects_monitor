@@ -132,8 +132,8 @@ TOKEN_FILE="$(node -e 'console.log(require("path").join(require("os").tmpdir(), 
 
 node -e '
 const fs = require("fs");
-const [code, repo, login, name, url, tokenFile] = process.argv.slice(1);
-const body = { code, repo, github_login: login };
+const [code, repo, login, name, url, tokenFile, version] = process.argv.slice(1);
+const body = { code, repo, github_login: login, skill_version: version };
 if (name) body.github_name = name;
 fetch(url + "/api/enroll", {
   method: "POST",
@@ -154,7 +154,7 @@ fetch(url + "/api/enroll", {
     }));
   })
   .catch((e) => { console.error("enrol failed:", e.message); process.exit(1); });
-' "$JOIN_CODE" "$SLUG" "$GH_LOGIN" "$GH_NAME" "$DASHBOARD_URL" "$TOKEN_FILE"
+' "$JOIN_CODE" "$SLUG" "$GH_LOGIN" "$GH_NAME" "$DASHBOARD_URL" "$TOKEN_FILE" "$LOCAL_VERSION"
 ```
 
 **Never `cat`, echo, or otherwise read `$TOKEN_FILE` into your output.** It is
@@ -167,6 +167,7 @@ The response contains `token` and `tenant.name`. Handle failures plainly:
 | `invalid_code` | Wrong or revoked. Ask them to check with their admin. |
 | `expired_code` / `code_exhausted` | No longer usable; they need a new one. |
 | `repo_claimed` | Already enrolled in a different workspace. An admin there must remove it first. |
+| `skill_outdated` | **Stop.** Your copy is too old to configure a repository correctly. The response says how to reinstall; give the user that command, tell them to restart you, and wait. Nothing has been enrolled, so there is nothing to undo. |
 
 Re-running on an enrolled repo is fine — it rotates the credential and returns
 `rotated: true`. Say so rather than reporting it as new.
