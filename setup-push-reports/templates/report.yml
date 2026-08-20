@@ -366,16 +366,19 @@ jobs:
           REPORT_TOKEN: ${{ secrets.REPORT_TOKEN }}
           # Named by docs/screenshots.config.json when the pages need a login.
           # Absent on a public site, and absent secrets are simply skipped.
-          SCREENSHOT_EMAIL: ${{ secrets.SCREENSHOT_EMAIL }}
-          SCREENSHOT_PASSWORD: ${{ secrets.SCREENSHOT_PASSWORD }}
-          SCREENSHOT_COOKIE: ${{ secrets.SCREENSHOT_COOKIE }}
-          # Most real apps need environment to boot at all — a database URL, an
-          # API key. Any repo secret named SCREENSHOT_ENV_FOO is handed to the
-          # app as FOO. The prefix is what keeps this explicit: only secrets
-          # deliberately marked for this reach the process.
+          # ONE mechanism, because what an app needs to boot differs per project
+          # and cannot be listed here: any repo secret named SCREENSHOT_ENV_FOO
+          # is handed to the app, and to the capture, as FOO. Naming specific
+          # secrets in this file would mean editing the workflow for every
+          # project — and a workflow nobody may edit is the point of a template.
+          #
+          # The prefix is the opt-in: only secrets deliberately marked for this
+          # reach the process, not the repository's whole secret store.
           ALL_SECRETS: ${{ toJSON(secrets) }}
         run: |
           set -uo pipefail
+
+          cfg=docs/screenshots.config.json
 
           # Written to a file and sourced rather than eval'd, so a value
           # containing quotes or $( ) is data and never shell.
@@ -396,7 +399,28 @@ jobs:
           set +a
           unset ALL_SECRETS
 
-          cfg=docs/screenshots.config.json
+          # A project declares what it cannot start without. Checked here so a
+          # missing secret is named, rather than surfacing three minutes later
+          # as "the app did not respond on port 3000", which says nothing about
+          # the cause and sends people to look at their code.
+          missing=""
+          for name in $(node -e "
+            const c = JSON.parse(require('fs').readFileSync('$cfg','utf8'));
+            process.stdout.write((c.requires || []).join(' '));
+          "); do
+            eval "value=\${$name:-}"
+            [ -n "$value" ] || missing="$missing $name"
+          done
+
+          if [ -n "$missing" ]; then
+            echo "::warning::This project cannot start without:$missing"
+            for name in $missing; do
+              echo "  add a repository secret named SCREENSHOT_ENV_${name}"
+            done
+            echo "Skipping capture. The dashboard keeps the screenshots it already has."
+            exit 0
+          fi
+
           read_cfg() { node -e "process.stdout.write(String((JSON.parse(require('fs').readFileSync('$cfg','utf8'))['$1'] ?? '$2')))"; }
 
           install_cmd="$(read_cfg install 'npm ci')"

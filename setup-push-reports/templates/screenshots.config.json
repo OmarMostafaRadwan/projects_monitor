@@ -12,13 +12,16 @@
   "viewport": { "width": 1440, "height": 900 },
   "waitMs": 400,
 
-  "$comment_auth": "Optional. Only needed when the interesting pages are behind a login. Values are the NAMES of repo secrets, never the secrets themselves — this file is committed. Delete the whole auth block for a public site.",
+  "$comment_secrets": "Every value this project needs at run time comes from ONE mechanism: a repository secret named SCREENSHOT_ENV_<NAME> arrives as <NAME>. So DATABASE_URL comes from a secret called SCREENSHOT_ENV_DATABASE_URL. Nothing here is a secret itself — this file is committed. List the names below and CI will refuse to start, and name them, rather than failing three minutes later with an unrelated error.",
+  "requires": ["CAPTURE_EMAIL", "CAPTURE_PASSWORD"],
+
+  "$comment_auth": "Optional. Only needed when the interesting pages are behind a login. These are NAMES, resolved the same way as everything in `requires`. Delete the whole auth block for a public site.",
   "auth": {
     "login": {
       "path": "/login",
       "fields": {
-        "input[name=email]": "SCREENSHOT_EMAIL",
-        "input[name=password]": "SCREENSHOT_PASSWORD"
+        "input[name=email]": "CAPTURE_EMAIL",
+        "input[name=password]": "CAPTURE_PASSWORD"
       },
       "submit": "button[type=submit]"
     }

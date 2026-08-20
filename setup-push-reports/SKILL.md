@@ -249,18 +249,24 @@ project's real values** rather than copied verbatim:
   the block for a public site, and tell the user at Step 10 which repo secrets
   to add if you kept it.
 
-**Work out what the app needs in order to start, and say so.** Most real
-applications refuse to boot without a database URL or an API key, and CI has
-none of them. Look for `.env.example`, a `.env` template, or whatever the README
-tells a new developer to set. Any repo secret named `SCREENSHOT_ENV_FOO` is
-handed to the app as `FOO`, so a project needing `DATABASE_URL` needs a secret
-called `SCREENSHOT_ENV_DATABASE_URL`.
+**Work out everything the app needs at run time, and declare it.** There is one
+mechanism, because what a project needs differs per project and the workflow is
+a template nobody should have to edit: a repository secret named
+`SCREENSHOT_ENV_<NAME>` arrives in the app's environment as `<NAME>`. A project
+needing `DATABASE_URL` needs a secret called `SCREENSHOT_ENV_DATABASE_URL`. The
+login credentials work the same way — there are no special names for them.
+
+Find the list rather than guessing it: `.env.example`, a `.env` template, the
+compose file, or whatever the README tells a new developer to set. Put those
+names in `requires`, and CI will stop and name any that are missing instead of
+failing minutes later with an error about a port.
 
 You cannot create these — you do not have the values, and must not ask for them
-in the conversation. Name them at Step 10 as something the user adds themselves.
-Without them the capture job starts nothing, warns, and leaves the dashboard's
-existing screenshots alone; it never fails a build, but it also never produces a
-picture, and nobody will chase a warning they were never told to expect.
+in the conversation. List them at Step 10 as repository secrets the user adds
+themselves, spelled out in full, e.g. `SCREENSHOT_ENV_DATABASE_URL`. Without
+them the capture stops, warns, and leaves the dashboard's existing screenshots
+alone; it never fails a build, but it also never produces a picture, and nobody
+chases a warning they were not told to expect.
 
 Leave an existing `docs/screenshots.config.json` alone — it is the project's
 own, and it may have been tuned.
