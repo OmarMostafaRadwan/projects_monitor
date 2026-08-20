@@ -260,6 +260,19 @@ jobs:
             echo "Including ${count} screenshot(s), ${total} bytes."
           fi
 
+          # docs/features.md plus its rendered forms. Read from files for
+          # the same reason as everything else here: a 200 KB document
+          # passed as an argument exceeds the limit and kills the step.
+          : > /tmp/features.md
+          if [ -f docs/features.md ]; then
+            size="$(wc -c < docs/features.md)"
+            if [ "$size" -le 200000 ]; then
+              cp docs/features.md /tmp/features.md
+              echo "Including docs/features.md (${size} bytes)."
+            else
+              echo "::notice::docs/features.md is ${size} bytes - too large to send."
+            fi
+          fi
           jq -nc \
             --arg repo "$REPO" \
             --arg developer "$DEVELOPER" \
@@ -270,6 +283,7 @@ jobs:
             --arg pushed_at "$pushed_at" \
             --argjson report "$report_json" \
             --rawfile readme /tmp/readme.txt \
+            --rawfile features /tmp/features.md \
             --slurpfile screenshots /tmp/shots.json \
             '{
               repo: $repo,
@@ -281,6 +295,7 @@ jobs:
               pushed_at: $pushed_at,
               report: $report,
               readme: $readme,
+              features: $features,
               screenshots: $screenshots[0]
             }' > /tmp/payload.json
 
@@ -309,6 +324,28 @@ jobs:
               echo "Screenshots are captured by the screenshots job — not sent from here."
             fi
           fi
+
+          # The two rendered documents, attached like the report PDF: a
+          # second pass, so one code path builds the payload and one adds.
+          for fmt in pdf docx; do
+            file="docs/features.$fmt"
+            [ -f "$file" ] || continue
+            size="$(wc -c < "$file")"
+            if [ "$size" -gt 5000000 ]; then
+              echo "::warning::$file is ${size} bytes - over 5 MB, not attached."
+              continue
+            fi
+            base64 -w0 "$file" > "/tmp/features.$fmt.b64"
+            if jq -c --arg key "features_${fmt}_base64" \
+                 --rawfile doc "/tmp/features.$fmt.b64" \
+                 '. + {($key): ($doc | rtrimstr("\\n"))}' \
+                 /tmp/payload.json > /tmp/payload.next.json; then
+              mv /tmp/payload.next.json /tmp/payload.json
+              echo "Attached $file (${size} bytes)."
+            else
+              echo "::warning::Could not attach $file."
+            fi
+          done
 
           echo "Payload is $(wc -c < /tmp/payload.json) bytes."
 
