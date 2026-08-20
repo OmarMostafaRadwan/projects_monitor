@@ -273,6 +273,23 @@ jobs:
               echo "::notice::docs/features.md is ${size} bytes - too large to send."
             fi
           fi
+          # A description nobody has reviewed for months still reads as
+          # current, which is the whole problem with it. The marker makes
+          # staleness a fact the build can check, not a reader's guess.
+          if [ -s /tmp/features.md ]; then
+            reviewed="$(grep -o 'full-review:[[:space:]]*[0-9][0-9-]*' /tmp/features.md | head -1 | grep -o '[0-9][0-9-]*' || true)"
+            if [ -z "$reviewed" ]; then
+              echo "::warning::docs/features.md has no full-review marker, so nobody can tell how current it is."
+            else
+              age=$(( ( $(date -u +%s) - $(date -u -d "$reviewed" +%s 2>/dev/null || date -u +%s) ) / 86400 ))
+              if [ "$age" -gt 90 ]; then
+                echo "::warning::docs/features.md was last reviewed in full ${age} days ago (${reviewed}). Re-read the project and refresh it."
+              else
+                echo "docs/features.md last reviewed in full ${age} days ago."
+              fi
+            fi
+          fi
+
           jq -nc \
             --arg repo "$REPO" \
             --arg developer "$DEVELOPER" \

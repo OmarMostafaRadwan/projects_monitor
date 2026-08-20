@@ -74,7 +74,7 @@ Setup pushes a workflow file, which GitHub refuses without `workflow`:
 **Nothing here needs `jq` or any other tool.** Only `git`, `gh` and `node`,
 which the checks above confirm.
 
-**Note the current branch** — you will need it at step 9:
+**Note the current branch** — you will need it at step 10:
 
 ```bash
 git rev-parse --abbrev-ref HEAD
@@ -330,7 +330,55 @@ Do not create `AGENTS.md` where there is none — its presence is how a project
 signals it uses that convention, and inventing one puts a file in someone's
 repository they did not ask for.
 
-## Step 8 — Write the first report entry
+## Step 8 — Write `docs/features.md`
+
+This is the description of the project that non-technical people read, and the
+one document nothing else can reconstruct. **Write it now, at setup, by
+surveying the whole project** — not from the part of the code you happen to have
+open, and not from the commit history.
+
+Read enough to be able to list what the project does: its routes or commands,
+its entry points, its README, its existing docs, its configuration. Then write
+capabilities in plain language, grouped by what a person is trying to do.
+
+**On a large project this is real work, and doing it badly is worse than not
+doing it.** A description covering a quarter of a system looks exactly like one
+covering all of it — nobody reading the dashboard can tell the difference. If
+the project is too large to survey honestly in one pass:
+
+- cover what you can genuinely account for,
+- say so in the document, in a short section naming the areas you have not
+  covered yet,
+- and put that in `next_steps` in the report entry, so it is visible as
+  unfinished rather than silently partial.
+
+Start the file with the review marker, dated today:
+
+```markdown
+<!-- full-review: YYYY-MM-DD -->
+
+# <Project name>
+
+<One paragraph: what this is, and who it is for.>
+
+## <A group of capabilities>
+
+### <A capability>
+<What it does, in the present tense, for someone who will never read the code.>
+```
+
+Then render the documents and check the tool reported the section and bullet
+counts you expect:
+
+```bash
+node .github/render-features.mjs
+```
+
+If the project genuinely has no user-facing behaviour to describe — a library
+consumed only by other code, for instance — write the file anyway, briefly, and
+say that. An absent file is indistinguishable from a forgotten one.
+
+## Step 9 — Write the first report entry
 
 Follow the instructions now in `CLAUDE.md` and add an entry describing the
 setup itself — that both seeds the log and proves the tooling runs:
@@ -339,7 +387,7 @@ setup itself — that both seeds the log and proves the tooling runs:
 node .github/add-report-entry.mjs <entry.json>
 ```
 
-## Step 9 — Commit and push
+## Step 10 — Commit and push
 
 **Check the branch first.** Setup commits `.github/`, `reports/`, `CLAUDE.md`
 and `.gitattributes`. On a feature branch those files ride into whatever pull
@@ -366,7 +414,7 @@ git push
 Do not create a branch, and do not switch branches yourself — that is the
 user's call, and switching could disturb uncommitted work.
 
-## Step 10 — Report back
+## Step 11 — Report back
 
 Confirm in a few lines:
 

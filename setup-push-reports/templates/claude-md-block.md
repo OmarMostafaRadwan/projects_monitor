@@ -65,6 +65,20 @@ tense. Not what changed this week — that is what the report entry is for. If a
 push adds, removes or meaningfully alters a capability, update this file in the
 same push.
 
+**Incremental edits are not enough on their own.** Updating only what you
+just touched means the file slowly stops matching the project: capabilities
+removed by someone else stay listed, and whole areas nobody happened to work on
+never get described. So the file carries a marker:
+
+```markdown
+<!-- full-review: 2026-01-31 -->
+```
+
+When that date is **more than 90 days old** — the Action warns when it is — stop
+editing incrementally and do a full pass: re-read the project, correct what is
+now wrong, add what is missing, delete what no longer exists, and set the date to
+today. Mention the review in that push's report entry.
+
 Then render the two documents a non-technical reader actually opens:
 
 ```bash

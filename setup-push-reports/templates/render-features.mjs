@@ -34,8 +34,17 @@ const OUT_DOCX = process.argv[4] ?? "docs/features.docx";
  * supports fewer shapes.
  */
 function parse(markdown) {
-  const doc = { title: "Features", lead: "", blocks: [] };
-  const lines = markdown.replace(/\r\n/g, "\n").split("\n");
+  const doc = { title: "Features", lead: "", blocks: [], reviewed: null };
+
+  // The review marker is metadata, not prose. Read it, then strip every comment
+  // - otherwise they fall through to the paragraph branch and get typeset into
+  // the document, which is how a note to an author ends up in a client's PDF.
+  const marker = markdown.match(/<!--\s*full-review:\s*(\d{4}-\d{2}-\d{2})\s*-->/);
+  if (marker) doc.reviewed = marker[1];
+  const lines = markdown
+    .replace(/<!--[\s\S]*?-->/g, "")
+    .replace(/\r\n/g, "\n")
+    .split("\n");
   let paragraph = [];
 
   const flush = () => {
@@ -204,8 +213,12 @@ function renderPdf(doc, generatedAt) {
     );
     y -= 36;
   }
+  const stamp =
+    "What this project does, as of " +
+    generatedAt +
+    (doc.reviewed ? "  -  last full review " + doc.reviewed : "");
   ops.push(
-    `BT /F1 11 Tf 0.85 0.9 0.96 rg 1 0 0 1 ${MARGIN} ${(PAGE_H - 180).toFixed(2)} Tm (${esc("What this project does, as of " + generatedAt)}) Tj ET`,
+    `BT /F1 11 Tf 0.85 0.9 0.96 rg 1 0 0 1 ${MARGIN} ${(PAGE_H - 180).toFixed(2)} Tm (${esc(stamp)}) Tj ET`,
   );
 
   y = PAGE_H - 268;
@@ -418,7 +431,7 @@ function renderDocx(doc, generatedAt) {
 
   body.push(
     `<w:p><w:pPr><w:pStyle w:val="Title"/></w:pPr>${docxRuns(doc.title)}</w:p>`,
-    `<w:p><w:pPr><w:pStyle w:val="Subtitle"/></w:pPr><w:r><w:t xml:space="preserve">${xmlEscape("What this project does, as of " + generatedAt)}</w:t></w:r></w:p>`,
+    `<w:p><w:pPr><w:pStyle w:val="Subtitle"/></w:pPr><w:r><w:t xml:space="preserve">${xmlEscape("What this project does, as of " + generatedAt + (doc.reviewed ? "  -  last full review " + doc.reviewed : ""))}</w:t></w:r></w:p>`,
   );
   if (doc.lead) {
     body.push(`<w:p><w:pPr><w:pStyle w:val="Lead"/></w:pPr>${docxRuns(doc.lead)}</w:p>`);
