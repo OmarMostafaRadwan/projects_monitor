@@ -196,6 +196,7 @@ previous copies:
 | `report-entry.schema.json` | `.github/report-entry.schema.json` |
 | `report-document.schema.json` | `.github/report-document.schema.json` |
 | `capture-screenshots.mjs` | `.github/capture-screenshots.mjs` |
+| `render-features.mjs` | `.github/render-features.mjs` |
 
 Then create the reports directory:
 
@@ -212,6 +213,10 @@ refuses to overwrite one belonging to something else.
 The dashboard shows screenshots of a project's pages. They are captured by CI on
 every push to the default branch, never committed, and never taken by you — you
 have no browser, and a repository that commits an image per push grows forever.
+
+**Do not ask the user whether they want screenshots.** If the project has
+pages, set this up. It is part of what connecting a project means, and a
+question here only produces a project that silently never shows anything.
 
 **Decide whether this project has pages at all.** Look at `package.json` for a
 start script, and at the project layout. A web application qualifies; a library,
@@ -282,6 +287,7 @@ and creating the file if absent:
 
 ```
 *.pdf binary
+*.docx binary
 .github/workflows/report.yml text eol=lf
 .github/*.mjs text eol=lf
 ```
@@ -289,7 +295,9 @@ and creating the file if absent:
 Both matter, and both fail in ways that do not mention line endings:
 
 - Without `binary`, git rewrites bytes inside the report PDF on Windows
-  checkouts and corrupts it.
+  checkouts and corrupts it. A `.docx` is a ZIP archive, so the same rewrite
+  makes it unopenable — Word reports a damaged file and says nothing about line
+  endings.
 - Without `eol=lf`, a Windows checkout gives the workflow CRLF, and every
   carriage return inside a `run:` block reaches the Ubuntu runner as
   `$'\r': command not found`.
@@ -350,6 +358,7 @@ Then, on whichever branch they chose:
 ```bash
 git add .github reports CLAUDE.md .gitattributes
 git add docs/screenshots.config.json 2>/dev/null || true
+git add docs/features.md docs/features.pdf docs/features.docx 2>/dev/null || true
 git commit -m "chore: set up push reporting"
 git push
 ```

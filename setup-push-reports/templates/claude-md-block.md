@@ -58,6 +58,37 @@ leave a real blocker out to make a report look tidy.
 **`files_changed`** — omit it. The Action fills it in from GitHub's own record
 of the push, which is authoritative.
 
+### Keep `docs/features.md` current — every push
+
+`docs/features.md` describes **what this project does today**, in the present
+tense. Not what changed this week — that is what the report entry is for. If a
+push adds, removes or meaningfully alters a capability, update this file in the
+same push.
+
+Then render the two documents a non-technical reader actually opens:
+
+```bash
+node .github/render-features.mjs
+```
+
+That writes `docs/features.pdf` and `docs/features.docx`. Never hand-edit
+either; they are generated, and an edit is lost on the next push. Stage all
+three together.
+
+**Write it for someone who will never open the code.** Capabilities, in plain
+language, grouped by what a person is trying to do. No file names, no function
+names, no framework names. A section that says what the project deliberately
+does *not* do is worth more than three that restate the obvious.
+
+The renderer understands a small, fixed set of Markdown, and silently ignores
+anything else — so keep to it:
+
+- `# Title` once, at the top
+- a lead paragraph directly under it
+- `## Section` and `### Subsection`
+- `- bullets` and plain paragraphs
+- `**bold**` inline
+
 ### Keep the project's own documentation current
 
 The dashboard shows each project's README and screenshots next to its push
