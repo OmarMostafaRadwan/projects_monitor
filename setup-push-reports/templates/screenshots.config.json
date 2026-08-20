@@ -28,6 +28,9 @@
   },
 
   "$comment_pages": "Numbered so they sort into the order a person meets them. Up to 12. Optional per page: fullPage, waitFor (a selector), waitMs.",
+  "$comment_ignore": "Pages that are reachable but must not be photographed, so the coverage check stops reporting them. Anything showing an API key, invite link, join code or token belongs here - never in pages.",
+  "ignore": ["/admin/tokens"],
+
   "pages": [
     { "name": "01-sign-in", "path": "/login", "signedOut": true },
     { "name": "02-overview", "path": "/" }

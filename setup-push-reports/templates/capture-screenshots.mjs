@@ -126,7 +126,17 @@ if (auth.cookie?.name && auth.cookie?.valueEnv) {
   }
 }
 
+const CRAWL_LIMIT = 60;
+
+/** Trailing slashes and query strings are noise when comparing paths. */
+function normalisePath(value) {
+  const path = String(value).split("?")[0].split("#")[0];
+  if (!path.startsWith("/")) return "";
+  return path.length > 1 ? path.replace(/\/+$/, "") : "/";
+}
+
 const shots = [];
+let coverage = null;
 let total = 0;
 let loginRequired = false;
 let loginSucceeded = false;
@@ -212,6 +222,86 @@ try {
       console.log(`::warning::Could not capture ${entry.path}: ${error.message}`);
     }
   }
+  // Coverage: which pages exist that nobody listed?
+  //
+  // The page list is written by hand, and a hand-written list of pages goes out
+  // of date the first time someone adds a screen and forgets. This does not fix
+  // that — it makes it visible, which is the most that can be done honestly. A
+  // crawl only finds what is LINKED and what this account can reach, so it is a
+  // tripwire for "you added a page and forgot", never a proof of coverage.
+  try {
+    const listed = new Set(pages.map((e) => normalisePath(String(e.path ?? ""))));
+    // Patterns, not just paths. A route with a parameter is listed once, by
+    // one real instance, so every OTHER instance is reachable and unlisted —
+    // and reporting "/projects/some-other-repo is missing" on every push is how
+    // a useful warning trains people to ignore warnings. `/projects/*` says
+    // "this route is covered".
+    const ignoreMatchers = (Array.isArray(config.ignore) ? config.ignore : [])
+      .map((e) => normalisePath(typeof e === "string" ? e : String(e?.path ?? "")))
+      .filter(Boolean)
+      .map((pattern) => {
+        if (!pattern.includes("*")) return (path) => path === pattern;
+        const re = new RegExp(
+          "^" + pattern.split("*").map((part) => part.replace(/[.+?^${}()|[]\]/g, "\$&")).join(".*") + "$",
+        );
+        return (path) => re.test(path);
+      });
+    const isIgnored = (path) => ignoreMatchers.some((match) => match(path));
+
+    const seen = new Set();
+    const queue = [normalisePath(config.crawlFrom || "/")];
+    const found = new Set();
+
+    while (queue.length && seen.size < CRAWL_LIMIT) {
+      const path = queue.shift();
+      if (!path || seen.has(path)) continue;
+      seen.add(path);
+
+      let hrefs = [];
+      try {
+        const response = await page.goto(baseUrl + path, {
+          waitUntil: "domcontentloaded",
+          timeout: 15_000,
+        });
+        if (!response || response.status() >= 400) continue;
+        found.add(normalisePath(new URL(page.url()).pathname));
+        hrefs = await page.$$eval("a[href]", (as) => as.map((a) => a.getAttribute("href") || ""));
+      } catch {
+        continue;
+      }
+
+      for (const href of hrefs) {
+        if (!href || href.startsWith("#") || href.startsWith("mailto:")) continue;
+        let next;
+        try {
+          const url = new URL(href, baseUrl + path);
+          if (url.origin !== new URL(baseUrl).origin) continue;
+          next = normalisePath(url.pathname);
+        } catch {
+          continue;
+        }
+        if (next && !seen.has(next)) queue.push(next);
+      }
+    }
+
+    const missing = [...found]
+      .filter((path) => !listed.has(path) && !isIgnored(path))
+      .sort();
+
+    if (missing.length) {
+      console.log(
+        `::warning::${missing.length} page(s) are reachable but not in ${CONFIG_PATH}: ${missing.join(" ")}`,
+      );
+      console.log(
+        'Add them to "pages", or to "ignore" with a note saying why — a page showing a credential belongs in "ignore", never in "pages".',
+      );
+    } else {
+      console.log(`Coverage: every reachable page (${found.size}) is listed or ignored.`);
+    }
+    coverage = { reachable: [...found].sort(), missing };
+  } catch (error) {
+    console.log(`::warning::Coverage check failed (${error.message}). Captures are unaffected.`);
+  }
 } finally {
   await browser.close();
 }
@@ -239,7 +329,14 @@ const response = await fetch(`${dashboardUrl}/api/screenshots`, {
     Authorization: `Bearer ${reportToken}`,
     "Content-Type": "application/json",
   },
-  body: JSON.stringify({ repo, commit: process.env.GITHUB_SHA, screenshots: shots }),
+  body: JSON.stringify({
+    repo,
+    commit: process.env.GITHUB_SHA,
+    screenshots: shots,
+    // Sent so the gap shows on the project's page. A warning that only exists
+    // in a build log is a warning nobody reads.
+    coverage: coverage ?? undefined,
+  }),
 });
 
 if (response.ok) {

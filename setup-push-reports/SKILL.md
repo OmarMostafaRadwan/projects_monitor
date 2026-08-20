@@ -245,6 +245,17 @@ project's real values** rather than copied verbatim:
   omission. For a route with parameters, pick one real instance that will still
   exist later.
 
+- `ignore` — pages the capture will reach but must not photograph, so the
+  coverage check stops reporting them. `*` matches anything, which is how a
+  route with a parameter is handled: list one real instance under `pages` and
+  put `/projects/*` here, or every other instance is reported as missing on
+  every push until people stop reading the warnings.
+
+  After capturing, the job crawls the running app and names any page it reached
+  that is in neither list. That is a tripwire, not a guarantee — it only finds
+  pages that are LINKED and that the capture account can reach — but it catches
+  the common case of a screen added and forgotten.
+
   **Never list a page that displays a credential.** Anything showing an API key,
   an invite link, a join code or a token becomes a picture on a dashboard that
   everyone with project access can see. Skip it and say why in the config, in a
