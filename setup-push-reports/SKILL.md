@@ -71,6 +71,30 @@ Setup pushes a workflow file, which GitHub refuses without `workflow`:
   `gh auth refresh -h github.com -s workflow`, which adds the scope without
   discarding the existing login. Same rule as above: they run it, not you.
 
+### Check you are not a stale copy of yourself
+
+This skill lives in the user's personal skills directory. It is installed once
+and then sits there — it does not update itself, and nothing tells the user when
+it has fallen behind.
+
+That failure is silent and expensive: an old copy compares a repository against
+its own old templates, finds them identical, correctly changes nothing, and
+reports success. The project ends up connected but missing whatever the newer
+version would have installed, and the report says everything was already in
+order. This has already happened once.
+
+```bash
+LOCAL_VERSION="$(cat "$(dirname "$0")/VERSION" 2>/dev/null || cat ~/.claude/skills/setup-push-reports/VERSION 2>/dev/null || echo unknown)"
+PUBLISHED_VERSION="$(curl -fsSL --max-time 10 https://raw.githubusercontent.com/OmarMostafaRadwan/projects_monitor/main/setup-push-reports/VERSION 2>/dev/null || echo unknown)"
+echo "installed: $LOCAL_VERSION   published: $PUBLISHED_VERSION"
+```
+
+- Same, or either is `unknown` because the network is unavailable → carry on.
+- **Different → stop.** Do not enrol, do not write files. Tell the user their
+  copy is out of date, give them the install command for their platform, and
+  say they must restart you afterwards because a skill is only read at startup.
+  Then wait. Continuing installs an old version of everything.
+
 **Nothing here needs `jq` or any other tool.** Only `git`, `gh` and `node`,
 which the checks above confirm.
 
@@ -474,6 +498,16 @@ Do not create a branch, and do not switch branches yourself — that is the
 user's call, and switching could disturb uncommitted work.
 
 ## Step 11 — Report back
+
+**Say plainly which parts are live and which are waiting.** In particular:
+
+- **Screenshots only run on the default branch.** If you set this up on a
+  feature branch, say so — the capture will not run until the work is merged,
+  and someone watching an empty Screenshots tab will otherwise assume it is
+  broken.
+- Name any repository secrets the user still has to add, spelled out in full.
+- Give the counts from Step 8: how many things you found, how many you described.
+
 
 Confirm in a few lines:
 
