@@ -233,13 +233,34 @@ project's real values** rather than copied verbatim:
   lives in a subdirectory, `cd` into it **in every one of the three commands** —
   each runs from the repository root, independently of the others.
 - `port` and `readyPath` — where the started app answers.
-- `pages` — the routes worth showing, numbered in the order a person meets
-  them. Read them from the router rather than guessing. Two or three good ones
-  beat twelve speculative ones.
+- `pages` — the routes a person actually meets, numbered in that order. **List
+  them from the router, and list all of them** up to the limit of twelve; do not
+  stop at three because three were easy to find. A dashboard showing four of a
+  product's eleven screens misrepresents it, and nothing later will notice the
+  omission. For a route with parameters, pick one real instance that will still
+  exist later.
+
+  **Never list a page that displays a credential.** Anything showing an API key,
+  an invite link, a join code or a token becomes a picture on a dashboard that
+  everyone with project access can see. Skip it and say why in the config, in a
+  `$comment` next to the page list.
 - `auth` — only if the interesting pages are behind a login. It names the
   environment variables holding the credentials; it never contains them. Delete
   the block for a public site, and tell the user at Step 10 which repo secrets
   to add if you kept it.
+
+**Work out what the app needs in order to start, and say so.** Most real
+applications refuse to boot without a database URL or an API key, and CI has
+none of them. Look for `.env.example`, a `.env` template, or whatever the README
+tells a new developer to set. Any repo secret named `SCREENSHOT_ENV_FOO` is
+handed to the app as `FOO`, so a project needing `DATABASE_URL` needs a secret
+called `SCREENSHOT_ENV_DATABASE_URL`.
+
+You cannot create these — you do not have the values, and must not ask for them
+in the conversation. Name them at Step 10 as something the user adds themselves.
+Without them the capture job starts nothing, warns, and leaves the dashboard's
+existing screenshots alone; it never fails a build, but it also never produces a
+picture, and nobody will chase a warning they were never told to expect.
 
 Leave an existing `docs/screenshots.config.json` alone — it is the project's
 own, and it may have been tuned.
