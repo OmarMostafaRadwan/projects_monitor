@@ -117,6 +117,27 @@ jobs:
             echo "::notice::Could not determine changed files — leaving the report's own list."
           fi
 
+          # Is entries[0] actually about THIS push?
+          #
+          # The file existing is not enough. Left at that, a push where nobody
+          # wrote an entry re-sends the previous one — its title, its summary,
+          # its blockers — stamped with this commit and this push's file list.
+          # Old work is then reported as new, and a blocker that was resolved
+          # last week reappears as current. That is worse than the stub, because
+          # a stub is visibly thin and a stale entry is indistinguishable from a
+          # real one.
+          #
+          # reports/report.json changing in this push is the evidence, and the
+          # file list above already says so. Only trust that when the list is
+          # non-empty: an empty list means we could not tell, and guessing
+          # "stale" there would throw away a perfectly good report.
+          if [ "$use_fallback" -eq 0 ]              && [ "$(jq -r 'length' <<<"$files_json" 2>/dev/null || echo 0)" -gt 0 ]; then
+            if ! jq -e --arg f "$report_file" 'any(.[]; . == $f)' <<<"$files_json" >/dev/null 2>&1; then
+              use_fallback=1
+              echo "::notice::$report_file did not change in this push, so entries[0] describes earlier work. Sending a stub built from the commit instead."
+            fi
+          fi
+
           if [ "$use_fallback" -eq 0 ]; then
             # Flatten the newest entry into the wire shape the dashboard reads.
             report_json="$(jq -c '.entries[0] | {

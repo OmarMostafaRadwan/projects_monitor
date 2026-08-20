@@ -296,7 +296,7 @@ Both matter, and both fail in ways that do not mention line endings:
 
 Leave the rest of an existing `.gitattributes` alone — only add what is missing.
 
-## Step 7 — Update CLAUDE.md
+## Step 7 — Update CLAUDE.md (and AGENTS.md if present)
 
 Append `templates/claude-md-block.md` to `CLAUDE.md`, creating the file if
 absent.
@@ -311,6 +311,16 @@ absent.
 
 If those markers exist, replace everything between them. Never append a second
 copy.
+
+**Then do the same for `AGENTS.md`, but only if it already exists.** Cursor,
+Codex and several other assistants read that file and never look at
+`CLAUDE.md`, so a team using one of them would follow none of these rules and
+every push would arrive as a bare stub. Same markers, same replace-between
+behaviour.
+
+Do not create `AGENTS.md` where there is none — its presence is how a project
+signals it uses that convention, and inventing one puts a file in someone's
+repository they did not ask for.
 
 ## Step 8 — Write the first report entry
 
