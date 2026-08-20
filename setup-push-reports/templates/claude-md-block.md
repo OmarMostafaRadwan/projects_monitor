@@ -60,6 +60,30 @@ of the push, which is authoritative.
 
 ### Keep `docs/features.md` current — every push
 
+**If `docs/features.md` does not exist, write it on this push.** A repository can
+be connected from the dashboard itself, in which case no assistant ever ran a
+setup procedure here and nobody has described this project. Do not wait to be
+asked.
+
+Write it by taking an inventory first, using commands rather than memory: list
+the project's pages, routes, commands or public entry points, then account for
+every one of them — it is described, it is internal and needs no description, or
+it goes in a **"Not yet described"** section at the end of the document. A
+description covering a quarter of a system looks exactly like one covering all
+of it, so the document has to say which it is. Start the file with a review
+marker dated today: `<!-- full-review: YYYY-MM-DD -->`.
+
+**Never describe a screen that displays a credential**, and never list one for
+screenshots either.
+
+The same applies to `docs/screenshots.config.json`. If this project has pages
+and that file does not exist, create it: the commands to install, build and
+start the app, the port it answers on, and the pages worth showing. Read the
+package manager from the lockfile rather than assuming, and `cd` into the app's
+directory in all three commands when it does not sit at the top level. Put pages
+that must never be photographed under `ignore`. If the project has no pages — a
+library, a command-line tool — do not create it.
+
 `docs/features.md` describes **what this project does today**, in the present
 tense. Not what changed this week — that is what the report entry is for. If a
 push adds, removes or meaningfully alters a capability, update this file in the
