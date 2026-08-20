@@ -209,8 +209,36 @@ head -1 .github/workflows/report.yml 2>/dev/null
   `.github/workflows/push-report.yml` instead, and use that name for the rest
   of this step. Never overwrite a workflow you did not write.
 
-Then copy from this skill's `templates/` directory, overwriting only our own
-previous copies:
+### Take the templates from the source, not from yourself
+
+**Fetch each file fresh, and fall back to your bundled copy only if that
+fails.** Your `templates/` directory is a snapshot from the day this skill was
+installed on this machine. A copy installed months ago writes months-old files
+into a project that is being connected today — and because it compares what it
+writes against its own old templates, it finds them matching and reports that
+everything was already in order. That has happened, and it produced a project
+with no README, no description and no screenshots, all reported as a success.
+
+```bash
+BASE=https://raw.githubusercontent.com/OmarMostafaRadwan/projects_monitor/main/setup-push-reports/templates
+FRESH="$(mktemp -d)"
+
+for f in report.yml add-report-entry.mjs render-report-pdf.mjs          report-entry.schema.json report-document.schema.json          capture-screenshots.mjs render-features.mjs claude-md-block.md          screenshots.config.json; do
+  curl -fsSL --max-time 20 "$BASE/$f" -o "$FRESH/$f" || rm -f "$FRESH/$f"
+done
+
+# A truncated download is worse than no download: it installs a file that looks
+# present and does not work. Keep only what arrived whole.
+[ -s "$FRESH/report.yml" ] && head -1 "$FRESH/report.yml" | grep -q "^name: Push report"   || rm -f "$FRESH/report.yml"
+echo "fetched: $(ls "$FRESH" | wc -l) of 9 templates"
+```
+
+For each file below, install the copy in `$FRESH` when it is there, and your
+own bundled copy when it is not. Say which you used, and if you fell back for
+any of them, say so plainly — the user should know their project was configured
+from a possibly-old local copy.
+
+Then install, overwriting only our own previous copies:
 
 | Template | Destination |
 |---|---|
