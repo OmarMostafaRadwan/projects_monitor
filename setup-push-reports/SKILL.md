@@ -333,24 +333,72 @@ repository they did not ask for.
 ## Step 8 — Write `docs/features.md`
 
 This is the description of the project that non-technical people read, and the
-one document nothing else can reconstruct. **Write it now, at setup, by
-surveying the whole project** — not from the part of the code you happen to have
-open, and not from the commit history.
+one document nothing else can reconstruct.
 
-Read enough to be able to list what the project does: its routes or commands,
-its entry points, its README, its existing docs, its configuration. Then write
-capabilities in plain language, grouped by what a person is trying to do.
+**Build an inventory before you write a word of it.** "Read the project and
+describe it" is an instruction that can be followed badly with a clear
+conscience: you read some of it, describe what you read, and the result looks
+complete. An inventory turns that into something you can be held to, because
+every entry either appears in the document or is explicitly accounted for.
 
-**On a large project this is real work, and doing it badly is worse than not
-doing it.** A description covering a quarter of a system looks exactly like one
-covering all of it — nobody reading the dashboard can tell the difference. If
-the project is too large to survey honestly in one pass:
+### 8a — Enumerate, using commands rather than memory
 
-- cover what you can genuinely account for,
-- say so in the document, in a short section naming the areas you have not
-  covered yet,
-- and put that in `next_steps` in the report entry, so it is visible as
-  unfinished rather than silently partial.
+List the things a user can actually reach. What that means depends on the
+project, so pick what applies and **run it** — do not recall it:
+
+```bash
+# Web app: pages and routes
+find . -path ./node_modules -prune -o \( -name "page.tsx" -o -name "route.ts" \) -print
+find . -path ./node_modules -prune -o -name "*.routes.*" -print
+grep -rn "app.get\|app.post\|router\.\|@app.route\|@GetMapping" --include=*.{js,ts,py,rb,go,java} . | grep -v node_modules
+
+# CLI: commands and subcommands
+grep -rn "addCommand\|argparse\|commander\|cobra.Command\|click.command" . | grep -v node_modules
+
+# Library: what it actually exports
+cat package.json | grep -A20 '"exports"'
+grep -rn "^export " src/index.* 2>/dev/null
+
+# Anything scheduled, queued, or triggered by an event
+find . -path ./node_modules -prune -o \( -name "*.cron.*" -o -name "*worker*" -o -name "*job*" \) -print
+```
+
+Also read `README.md`, anything under `docs/`, and the settings or
+configuration screens — those describe capabilities that no route reveals.
+
+### 8b — Account for every item
+
+Write the inventory down. Then, for each entry, exactly one of:
+
+- it is described in `docs/features.md`, or
+- it is **not user-facing** (a health check, an internal callback, a redirect),
+  and needs no description, or
+- it is user-facing and you could **not** work out what it does.
+
+**The third case is the one that matters.** Those go into a section at the end
+of the document:
+
+```markdown
+## Not yet described
+
+- The billing settings screen - reachable at /settings/billing, not yet
+  documented here.
+```
+
+and into `next_steps` in the report entry. A description covering a quarter of
+a system looks exactly like one covering all of it — nobody reading the
+dashboard can tell the difference, so the document has to say so itself.
+
+### 8c — State the count
+
+When you report back at Step 11, say how many things you found and how many you
+described: "42 routes found, 38 described, 4 listed as not yet described". A
+number is checkable by someone who knows the project; a claim that it is
+"complete" is not.
+
+Do not skip this because the project is small. On a small project the inventory
+takes a minute and proves the document is whole; on a large one it is the only
+thing standing between a real description and a plausible-looking fragment.
 
 Start the file with the review marker, dated today:
 

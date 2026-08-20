@@ -75,9 +75,17 @@ never get described. So the file carries a marker:
 ```
 
 When that date is **more than 90 days old** — the Action warns when it is — stop
-editing incrementally and do a full pass: re-read the project, correct what is
-now wrong, add what is missing, delete what no longer exists, and set the date to
-today. Mention the review in that push's report entry.
+editing incrementally and do a full pass.
+
+A full pass is not "read it again and see if anything looks wrong" — that finds
+what you already remember. Rebuild the inventory the way setup did: list the
+project's routes, commands or public entry points **with a command**, then check
+every one against the document. Add what is missing, delete what no longer
+exists, correct what is now wrong, and move anything you could not account for
+into the "Not yet described" section rather than leaving it unmentioned.
+
+Then set the date to today and say in that push's report entry how many entries
+you found and how many are described.
 
 Then render the two documents a non-technical reader actually opens:
 
